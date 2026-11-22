@@ -1,0 +1,13 @@
+{
+  "id": "posterize",
+  "name": "Posterize",
+  "description": "Posterize effect and bands generator",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/posterize",
+  "license": "MIT",
+  "kind": "python",
+  "version": "1.0.0",
+  "script": "posterize.py",
+  "min_app": "0.16.0",
+  "sdk": "0.3.0"
+}

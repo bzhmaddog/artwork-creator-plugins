@@ -1,0 +1,200 @@
+# Releases one plugin. Push a tag <plugin>-<version>, where <plugin> is the plugin's folder
+# in plugins/ and <version> the version in its Cargo.toml (Rust) or plugin.json (Python):
+#
+#   git tag -a halftone-0.2.0 -m "Line screen added"   # the message becomes "changes"
+#   git push origin halftone-0.2.0
+#
+# The workflow builds the files (a Rust plugin: libX.so for Linux, linked against an old
+# glibc like the app, and X.dll for Windows; a Python plugin: its script), puts them on a
+# GitHub Release for that tag, downloads them back to check their SHA-256, then adds the
+# version to plugins.json on the default branch. With release immutability on (Settings >
+# General > Releases), a published release, its files and its tag can no longer change,
+# so the URLs in plugins.json always serve the bytes their hash describes.
+name: Release plugin
+
+on:
+  push:
+    tags: ["*-[0-9]*.[0-9]*.[0-9]*"]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+  TAG: ${{ github.ref_name }}
+
+jobs:
+  resolve:
+    name: Resolve tag
+    runs-on: ubuntu-latest
+    outputs:
+      dir: ${{ steps.plugin.outputs.dir }}
+      kind: ${{ steps.plugin.outputs.kind }}
+      name: ${{ steps.plugin.outputs.name }}
+      version: ${{ steps.plugin.outputs.version }}
+      package: ${{ steps.plugin.outputs.package }}
+      lib: ${{ steps.plugin.outputs.lib }}
+      script: ${{ steps.plugin.outputs.script }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: plugin
+        run: python3 .github/scripts/plugin_index.py resolve "$TAG" >> "$GITHUB_OUTPUT"
+      - name: Not published yet
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo none)
+          if [ "$draft" = false ]; then
+            echo "::error::Release $TAG is already published; release a new version instead."
+            exit 1
+          fi
+
+  build:
+    name: Build (${{ matrix.name }})
+    needs: resolve
+    if: needs.resolve.outputs.kind == 'library'
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: linux
+            os: ubuntu-latest
+          - name: windows
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+    env:
+      PACKAGE: ${{ needs.resolve.outputs.package }}
+      LIB: ${{ needs.resolve.outputs.lib }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+        with:
+          key: release-${{ matrix.name }}
+      # Linked against the same old glibc as the app's Linux packages (GLIBC in the app's
+      # Makefile), with cargo-zigbuild and zig at the app's pinned versions (zig checked
+      # against its SHA-256); raise them together with the app.
+      - name: Build (Linux)
+        if: matrix.name == 'linux'
+        env:
+          GLIBC: "2.28"
+          ZIG_VERSION: 0.14.1
+          ZIG_SHA256: 24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
+        run: |
+          zig="zig-x86_64-linux-$ZIG_VERSION"
+          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/zig.tar.xz" "https://ziglang.org/download/$ZIG_VERSION/$zig.tar.xz"
+          echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
+          export PATH="$RUNNER_TEMP/$zig:$PATH"
+          cargo install cargo-zigbuild --version 0.24.1 --locked
+          cargo zigbuild --release --locked -p "$PACKAGE" --target "x86_64-unknown-linux-gnu.$GLIBC"
+          mkdir -p dist
+          cp "target/x86_64-unknown-linux-gnu/release/lib$LIB.so" dist/
+      - name: Build (Windows)
+        if: matrix.name == 'windows'
+        shell: bash
+        run: |
+          cargo build --release --locked -p "$PACKAGE"
+          mkdir -p dist
+          cp "target/release/$LIB.dll" dist/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: asset-${{ matrix.name }}
+          path: dist/*
+          if-no-files-found: error
+          retention-days: 7
+
+  publish:
+    name: Publish release
+    needs: [resolve, build]
+    if: ${{ !cancelled() && needs.resolve.result == 'success' && (needs.build.result == 'success' || needs.build.result == 'skipped') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      KIND: ${{ needs.resolve.outputs.kind }}
+      DIR: ${{ needs.resolve.outputs.dir }}
+      SCRIPT: ${{ needs.resolve.outputs.script }}
+      TITLE: ${{ needs.resolve.outputs.name }} ${{ needs.resolve.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+      # checkout leaves the tag without its annotation, which holds the changes.
+      - run: git fetch --force origin "refs/tags/$TAG:refs/tags/$TAG"
+      - uses: actions/download-artifact@v4
+        if: env.KIND == 'library'
+        with:
+          pattern: asset-*
+          path: dist
+          merge-multiple: true
+      - name: Script (Python)
+        if: env.KIND == 'python'
+        run: mkdir -p dist && cp "plugins/$DIR/$SCRIPT" dist/
+      # The ABI version of a Rust plugin is read from the SDK it builds against.
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        if: env.KIND == 'library'
+      - name: Index entry
+        run: |
+          python3 .github/scripts/plugin_index.py prepare "$TAG" --assets dist \
+            --base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
+            --out "$RUNNER_TEMP/entry.json" --notes "$RUNNER_TEMP/notes.md"
+          cat "$RUNNER_TEMP/entry.json"
+      # Files go on a draft, which is published once they are all there: with release
+      # immutability on, a published release takes no more files.
+      - name: Release
+        run: |
+          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
+            gh release delete "$TAG" --yes   # a draft left by a failed run; the tag stays
+          fi
+          gh release create "$TAG" --draft --verify-tag --latest=false \
+            --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md"
+          gh release upload "$TAG" dist/*
+          gh release edit "$TAG" --draft=false --latest=false
+      - name: Verify downloads
+        run: python3 .github/scripts/plugin_index.py verify "$RUNNER_TEMP/entry.json"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: index-entry
+          path: ${{ runner.temp }}/entry.json
+          if-no-files-found: error
+          retention-days: 30
+
+  index:
+    name: Update plugins.json
+    needs: publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    # One release at a time writes plugins.json.
+    concurrency:
+      group: plugin-index
+      cancel-in-progress: false
+    env:
+      BRANCH: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: index-entry
+          path: ${{ runner.temp }}
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          for attempt in 1 2 3 4 5; do
+            git fetch origin "$BRANCH"
+            git reset --hard "origin/$BRANCH"
+            python3 .github/scripts/plugin_index.py merge "$RUNNER_TEMP/entry.json"
+            python3 .github/scripts/plugin_index.py validate
+            git commit -am "Index $TAG"
+            if git push origin "HEAD:$BRANCH"; then exit 0; fi
+            sleep $((attempt * 5))
+          done
+          echo "::error::Could not push plugins.json; add $RUNNER_TEMP/entry.json (artifact index-entry) by hand."
+          exit 1

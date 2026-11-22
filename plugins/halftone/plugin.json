@@ -1,0 +1,10 @@
+{
+  "id": "halftone",
+  "name": "Halftone",
+  "description": "Halftone dots effect and dot grid generator",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
+  "license": "MIT",
+  "kind": "library",
+  "min_app": "0.16.0"
+}

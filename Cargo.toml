@@ -1,0 +1,10 @@
+# The Rust plugins (one crate per folder of plugins/), built together so they share
+# Cargo.lock. A new Rust plugin goes in `members` (a glob would also take the Python
+# plugins' folders); CI checks none is missing. See "Releasing a plugin" in README.md.
+[workspace]
+resolver = "3"
+members = ["plugins/halftone"]
+# The plugin SDK, from the Artwork Creator repository at a release tag, so a build
+# always gets the same SDK. Raise the tag on purpose, then `cargo update -p artwork-plugin-sdk`.
+[workspace.dependencies]
+artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator", tag = "v0.16.0" }

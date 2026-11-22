@@ -1,0 +1,13 @@
+{
+  "id": "swap-channels",
+  "name": "Swap channels",
+  "description": "Swap two color channels of an image",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/swap-channels",
+  "license": "MIT",
+  "kind": "python",
+  "version": "1.0.0",
+  "script": "swap_channels.py",
+  "min_app": "0.16.0",
+  "sdk": "0.3.0"
+}
