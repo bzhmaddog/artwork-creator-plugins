@@ -1,5 +1,36 @@
 {
   "format": 1,
   "name": "Artwork Creator community plugins",
-  "plugins": []
+  "plugins": [
+    {
+      "id": "halftone",
+      "name": "Halftone",
+      "description": "Halftone dots effect and dot grid generator",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
+      "license": "MIT",
+      "kind": "library",
+      "versions": [
+        {
+          "version": "0.1.0",
+          "released": "2026-11-22",
+          "abi": 2,
+          "min_app": "0.16.0",
+          "changes": "First release",
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-0.1.0/libhalftone.so",
+              "sha256": "824c1812c9fd2d096e0d2b65f42f0c84bc6cbdae7cb21c4418c81265c2f34ac9",
+              "size": 522384
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-0.1.0/halftone.dll",
+              "sha256": "00dadf5d927b92e329aa78d4a7ff0c8cd11f9c60c15446177b7fcf2e0e9d7c59",
+              "size": 278016
+            }
+          }
+        }
+      ]
+    }
+  ]
 }
