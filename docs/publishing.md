@@ -101,6 +101,15 @@ cargo-zigbuild. See the top of the `Makefile`.
 
    Raise `min_app` (and `sdk` for Python) if the new version needs a newer app. Use
    semantic versions, `X.Y.Z`.
+
+   If the new version can't read what earlier versions saved (an effect's settings renamed
+   or changed meaning, a generator removed), set `"compatible_from"` in `plugin.json` to the
+   new version. It goes into the index with the version, and the app can warn before an
+   update from anything older. Without it, the release carries over the previous
+   version's `compatible_from` (a first release gets its own version), so every version
+   in the index has one. Leaving it in `plugin.json` for the following versions does the
+   same; raise it only at the next break: `make validate` fails if a version's `compatible_from` is older
+   than an earlier version's.
 3. **Check and push**: `make check`, commit, and push to `main`. Wait for CI to pass.
 4. **Tag** the commit. The tag's message becomes the version's `changes`, shown in the
    plugin manager, so write it for users:
@@ -181,7 +190,8 @@ git commit -am "Index halftone-0.2.0" && git push
 
 **A published version is broken.** You can't replace its files or reuse its version.
 Release a fix as the next version (`0.2.1`). To stop the app offering the broken one,
-remove its entry from `versions` in `plugins.json` and commit that. This is the one
+remove its entry from `versions` in `plugins.json`, set the plugin's `latest` to the
+newest version left (`make validate` checks it), and commit that. This is the one
 change to `plugins.json` made by hand. The release itself stays, so anyone who already
 has the file can still check it.
 

@@ -2,7 +2,7 @@
 """The plugin index (plugins.json) and the releases it points to.
 
 Each plugin is a folder of plugins/ with a plugin.json manifest (id, name, description, author,
-homepage, license, kind, min_app, and effects and/or generators: the display names of what it
+homepage, license, kind, min_app, optionally compatible_from, and effects and/or generators: the display names of what it
 provides; for a Python plugin also version, script and sdk). A release is a tag <folder>-<version>; the Release workflow uses these commands:
 
   resolve TAG          check the tag against the plugin and print what to build, as
@@ -39,7 +39,7 @@ KINDS = ("library", "python")
 REQUIRED = ("id", "name", "description", "author", "license", "kind", "min_app")
 # Fields of a manifest copied to the plugin's entry in the index, and to each version.
 PLUGIN_FIELDS = ("id", "name", "description", "author", "homepage", "license", "kind")
-VERSION_FIELDS = ("min_app", "sdk", "effects", "generators")
+VERSION_FIELDS = ("min_app", "compatible_from", "sdk", "effects", "generators")
 # What a plugin provides, as lists of display names (the names the code returns).
 PROVIDES = ("effects", "generators")
 PEP723_RE = re.compile(r"(?m)^# /// script\s*$\s(?P<content>(^#(| .*)$\s)+)^# ///$")
@@ -51,6 +51,43 @@ class Error(Exception):
 
 def semver(v):
     return tuple(int(x) for x in v.split("."))
+
+
+def compatible_from_errors(d):
+    """Problems with the compatible_from of a manifest or an index version: the oldest version
+    of the plugin whose saved settings and documents this version still reads (absent: every
+    earlier version). Raised to the version itself by a release that breaks with the past."""
+    c = d.get("compatible_from")
+    if c is None:
+        return []
+    if not isinstance(c, str) or not VERSION_RE.match(c):
+        return [f"compatible_from {c!r} is not X.Y.Z"]
+    if VERSION_RE.match(d.get("version") or "") and semver(c) > semver(d["version"]):
+        return [f"compatible_from {c} is later than the version itself"]
+    return []
+
+
+def inherited_compatible_from(index, plugin_id, version):
+    """The compatible_from a version gets in the index when its manifest has none: the one of
+    the latest released version before it, or the version itself for a first release."""
+    earlier = [v for p in index["plugins"] if p["id"] == plugin_id for v in p["versions"]
+               if semver(v["version"]) < semver(version)]
+    if not earlier:
+        return version
+    return max(earlier, key=lambda v: semver(v["version"])).get("compatible_from", version)
+
+
+def with_compatible_from(version, index, plugin_id):
+    """version (a dict) with compatible_from filled in, in its place after min_app."""
+    if "compatible_from" in version:
+        return version
+    out = {}
+    for k, v in version.items():
+        out[k] = v
+        if k == "min_app":
+            out["compatible_from"] = inherited_compatible_from(index, plugin_id, version["version"])
+    out.setdefault("compatible_from", inherited_compatible_from(index, plugin_id, version["version"]))
+    return out
 
 
 def provides_errors(d):
@@ -145,6 +182,9 @@ def load_plugin(folder):
         raise Error(f"{folder.name}: {'; '.join(problems)}")
     if not VERSION_RE.match(m.get("version", "")):
         raise Error(f"{folder.name}: version {m.get('version')!r} is not X.Y.Z")
+    problems = compatible_from_errors(m)
+    if problems:
+        raise Error(f"{folder.name}: {'; '.join(problems)}")
     return m
 
 
@@ -227,10 +267,11 @@ def sha256(path):
     return h.hexdigest()
 
 
-def plugin_entry(folder, m, files, changes=None, abi=None):
+def plugin_entry(folder, m, files, changes=None, abi=None, index=None):
     """A plugin's entry in the index, with one version: the manifest's, released today, with
     the given files ({platform: {url, sha256, size}}). abi is the SDK's ABI version for a
-    library, read from the SDK when not given."""
+    library, read from the SDK when not given. With an index, a compatible_from the manifest
+    doesn't give is taken from it (merge does that for a release, against main's index)."""
     version = {"version": m["version"], "released": datetime.date.today().isoformat()}
     if m["kind"] == "library":
         version["abi"] = abi if abi is not None else sdk_abi()
@@ -245,7 +286,8 @@ def plugin_entry(folder, m, files, changes=None, abi=None):
             version["dependencies"] = deps
     version["files"] = files
     entry = {k: m[k] for k in PLUGIN_FIELDS if m.get(k)}
-    entry["versions"] = [version]
+    entry["latest"] = m["version"]
+    entry["versions"] = [with_compatible_from(version, index, m["id"]) if index else version]
     return entry
 
 
@@ -291,7 +333,7 @@ def cmd_verify(args):
 def cmd_merge(args):
     entry = json.loads(Path(args.entry).read_text(encoding="utf-8"))
     index = json.loads(INDEX.read_text(encoding="utf-8"))
-    new = entry["versions"][0]
+    new = with_compatible_from(entry["versions"][0], index, entry["id"])
     plugin = next((p for p in index["plugins"] if p["id"] == entry["id"]), None)
     if plugin is None:
         plugin = {"versions": []}
@@ -301,7 +343,8 @@ def cmd_merge(args):
     versions = sorted(plugin["versions"] + [new], key=lambda v: semver(v["version"]), reverse=True)
     # The plugin's details follow its latest release; versions keep their own.
     plugin.clear()
-    plugin.update({k: v for k, v in entry.items() if k != "versions"})
+    plugin.update({k: v for k, v in entry.items() if k not in ("latest", "versions")})
+    plugin["latest"] = versions[0]["version"]
     plugin["versions"] = versions
     index["plugins"].sort(key=lambda p: p["id"])
     INDEX.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
@@ -325,7 +368,7 @@ def cmd_validate(args):
         except (Error, OSError, ValueError, KeyError) as e:
             errors.append(str(e))
     for folder in PLUGINS.iterdir():
-        if folder.is_dir() and not (folder / "plugin.json").is_file():
+        if folder.is_dir() and not folder.name.startswith(".") and not (folder / "plugin.json").is_file():
             errors.append(f"plugins/{folder.name} has no plugin.json")
     workspace = tomllib.loads((ROOT / "Cargo.toml").read_text(encoding="utf-8"))["workspace"]["members"]
     for cargo in PLUGINS.glob("*/Cargo.toml"):
@@ -348,7 +391,9 @@ def cmd_validate(args):
             seen.add(v.get("version"))
             if not v.get("files"):
                 errors.append(f"{where} has no files")
-            errors += [f"{where}: {e}" for e in provides_errors(v)]
+            if not v.get("compatible_from"):
+                errors.append(f"{where} has no compatible_from")
+            errors += [f"{where}: {e}" for e in provides_errors(v) + compatible_from_errors(v)]
             if v.get("abi") == 1 and "generators" in v:
                 errors.append(f"{where}: ABI 1 has no generators")
             for platform, f in v.get("files", {}).items():
@@ -359,6 +404,26 @@ def cmd_validate(args):
                     errors.append(f"{where} {platform}: bad sha256")
                 if not isinstance(f.get("size"), int) or f["size"] <= 0:
                     errors.append(f"{where} {platform}: bad size")
+        try:
+            newest = max((v["version"] for v in p.get("versions", [])), key=semver, default=None)
+        except (KeyError, ValueError, AttributeError, TypeError):
+            newest = None
+        if newest and p.get("latest") != newest:
+            errors.append(f"plugins.json: {pid}: latest is {p.get('latest')!r}, but its latest version is {newest}")
+        # A break stays a break: a later version can't claim to read what an earlier one couldn't.
+        try:
+            ordered = sorted(p.get("versions", []), key=lambda v: semver(v["version"]))
+        except (KeyError, ValueError, AttributeError):
+            ordered = []
+        floor = None
+        for v in ordered:
+            c = v.get("compatible_from")
+            if c is None or not VERSION_RE.match(str(c)):
+                c = floor
+            elif floor and semver(c) < semver(floor):
+                errors.append(f"plugins.json: {pid} {v['version']}: compatible_from {c} is older than {floor}, set by an earlier version")
+                c = floor
+            floor = c
     for e in errors:
         print(f"::error::{e}")
     if errors:

@@ -1,7 +1,7 @@
 # artwork-creator-plugins
 A plugin repository for [Artwork Creator](https://github.com/bzhmaddog/artwork-creator).
 
-`plugins.json` is the index the app reads: each plugin, its versions, and for each version
+`plugins.json` is the index the app reads: each plugin, its `latest` version, its versions, and for each version
 the files to download (per platform), with their SHA-256 and size. Every URL points to an
 asset of an immutable GitHub Release, never to `main`, so a file always matches its hash.
 The index is written by the Release workflow; don't edit the `versions` by hand.
@@ -15,6 +15,7 @@ Each plugin is a folder of `plugins/` named after its id, with a `plugin.json` m
 | `id`, `name`, `description`, `author`, `homepage`, `license` | shown in the plugin manager |
 | `kind` | `library` (a Rust crate, built as `.so` and `.dll`) or `python` (a script) |
 | `min_app` | oldest Artwork Creator version the plugin runs on |
+| `compatible_from` | optional: oldest version of this plugin whose saved settings and documents this version still reads, so the app can warn before an update that breaks them. Every version in the index has it: left out of the manifest, it's carried over from the previous release (a first release gets its own version). Set it to the new version in a release that breaks with the past |
 | `effects`, `generators` | display names of what it provides (the `name` each one has in the code), copied into each version in the index; at least one of the two, and checked against the code |
 | `version` | Python only (a Rust plugin's version is the one in its `Cargo.toml`) |
 | `script` | Python only: the file to publish |

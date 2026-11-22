@@ -10,12 +10,14 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
+      "latest": "0.1.0",
       "versions": [
         {
           "version": "0.1.0",
           "released": "2026-11-22",
           "abi": 2,
           "min_app": "0.16.0",
+          "compatible_from": "0.1.0",
           "effects": [
             "Halftone"
           ],
@@ -46,11 +48,13 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/posterize",
       "license": "MIT",
       "kind": "python",
+      "latest": "1.0.0",
       "versions": [
         {
           "version": "1.0.0",
           "released": "2026-11-22",
           "min_app": "0.16.0",
+          "compatible_from": "1.0.0",
           "sdk": "0.3.0",
           "effects": [
             "Posterize"
@@ -77,11 +81,13 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/swap-channels",
       "license": "MIT",
       "kind": "python",
+      "latest": "1.0.0",
       "versions": [
         {
           "version": "1.0.0",
           "released": "2026-11-22",
           "min_app": "0.16.0",
+          "compatible_from": "1.0.0",
           "sdk": "0.3.0",
           "effects": [
             "Swap channels"
