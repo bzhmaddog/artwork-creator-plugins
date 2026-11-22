@@ -13,6 +13,9 @@
 #   make dist         the files a release publishes, for every plugin, in dist/
 #   make install      copy the plugins into the app's plugins folder (APP_PLUGINS), where
 #                     a debug build run from the app's repository (make run) finds them
+#   make serve        serve the working tree's plugins as a repository at
+#                     http://127.0.0.1:8765/plugins.json, rebuilt on every fetch, to try
+#                     them in the app before a release (SERVE_TARGETS, SERVE_PORT)
 #   make check        everything CI checks, plus rustfmt and clippy
 #   make test         run the Rust plugins' tests
 #   make fmt          format the Rust code
@@ -24,7 +27,7 @@ CARGO   ?= cargo
 PYTHON  ?= python3
 LINUX   := x86_64-unknown-linux-gnu
 WINDOWS := x86_64-pc-windows-gnu
-INDEX   := $(PYTHON) .github/scripts/plugin_index.py
+INDEX   := $(PYTHON) scripts/plugin_index.py
 DIST    := dist
 
 # Oldest glibc the released Linux files run on; the same as the app (GLIBC in its Makefile)
@@ -36,7 +39,7 @@ APP_PLUGINS ?= ../artwork-creator/plugins
 
 PY_PLUGINS := $(wildcard plugins/*/*.py)
 
-.PHONY: all linux linux-portable windows dist install check validate test fmt clippy tag clean
+.PHONY: all linux linux-portable windows dist install serve check validate test fmt clippy tag clean
 
 all: linux windows
 
@@ -60,13 +63,21 @@ install: linux windows
 	cp target/$(LINUX)/release/*.so target/$(WINDOWS)/release/*.dll $(APP_PLUGINS)/
 	cp $(PY_PLUGINS) $(APP_PLUGINS)/
 
+# The Rust targets make serve rebuilds on every fetch of the list; add $(WINDOWS) to serve
+# the .dll too, e.g. to a Windows app reaching WSL's localhost.
+SERVE_TARGETS ?= $(LINUX)
+SERVE_PORT    ?= 8765
+
+serve:
+	$(PYTHON) scripts/serve.py --port $(SERVE_PORT) $(foreach t,$(SERVE_TARGETS),--build $(t))
+
 check: validate clippy
 	$(CARGO) fmt --all --check
 
 # What CI checks besides the builds: the manifests, plugins.json and the Python scripts.
 validate:
 	$(INDEX) validate
-	$(PYTHON) -m py_compile .github/scripts/plugin_index.py $(PY_PLUGINS)
+	$(PYTHON) -m py_compile scripts/*.py $(PY_PLUGINS)
 
 test:
 	$(CARGO) test --locked --workspace

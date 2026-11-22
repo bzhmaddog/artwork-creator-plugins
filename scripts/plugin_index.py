@@ -13,6 +13,8 @@ release is a tag <folder>-<version>; the Release workflow uses these commands:
   validate             check plugins.json and every manifest (CI)
   version PLUGIN       print a plugin's version (make tag)
 
+serve.py, next to this file, uses this module for make serve.
+
 Standard library only (Python 3.11+).
 """
 
@@ -28,7 +30,7 @@ import tomllib
 import urllib.request
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+ROOT = Path(__file__).resolve().parents[1]
 INDEX = ROOT / "plugins.json"
 PLUGINS = ROOT / "plugins"
 TAG_RE = re.compile(r"^(?P<dir>[a-z0-9][a-z0-9-]*?)-(?P<version>\d+\.\d+\.\d+)$")
@@ -123,10 +125,10 @@ def cmd_resolve(args):
         print(f"{k}={v}")
 
 
-def sdk_abi():
+def sdk_abi(locked=True):
     """ABI_VERSION of the plugin SDK the workspace builds against."""
     meta = json.loads(subprocess.run(
-        ["cargo", "metadata", "--format-version", "1", "--locked"],
+        ["cargo", "metadata", "--format-version", "1"] + (["--locked"] if locked else []),
         cwd=ROOT, check=True, capture_output=True, text=True).stdout)
     for p in meta["packages"]:
         if p["name"] == "artwork-plugin-sdk":
@@ -165,22 +167,31 @@ def sha256(path):
     return h.hexdigest()
 
 
-def cmd_prepare(args):
-    folder, m = parse_tag(args.tag)
-    assets = Path(args.assets)
+def plugin_entry(folder, m, files, changes=None, abi=None):
+    """A plugin's entry in the index, with one version: the manifest's, released today, with
+    the given files ({platform: {url, sha256, size}}). abi is the SDK's ABI version for a
+    library, read from the SDK when not given."""
     version = {"version": m["version"], "released": datetime.date.today().isoformat()}
     if m["kind"] == "library":
-        version["abi"] = sdk_abi()
+        version["abi"] = abi if abi is not None else sdk_abi()
     for k in VERSION_FIELDS:
         if m.get(k):
             version[k] = m[k]
-    changes = tag_message(args.tag)
     if changes:
         version["changes"] = changes
     if m["kind"] == "python":
         deps = pep723_dependencies(folder / m["script"])
         if deps:
             version["dependencies"] = deps
+    version["files"] = files
+    entry = {k: m[k] for k in PLUGIN_FIELDS if m.get(k)}
+    entry["versions"] = [version]
+    return entry
+
+
+def cmd_prepare(args):
+    folder, m = parse_tag(args.tag)
+    assets = Path(args.assets)
     files = {}
     for platform, name in m["files"].items():
         path = assets / name
@@ -191,9 +202,8 @@ def cmd_prepare(args):
             "sha256": sha256(path),
             "size": path.stat().st_size,
         }
-    version["files"] = files
-    entry = {k: m[k] for k in PLUGIN_FIELDS if m.get(k)}
-    entry["versions"] = [version]
+    changes = tag_message(args.tag)
+    entry = plugin_entry(folder, m, files, changes)
     Path(args.out).write_text(json.dumps(entry, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
     if args.notes:
         lines = [changes or f"{m['name']} {m['version']}", "", "| Platform | File | SHA-256 |", "|---|---|---|"]

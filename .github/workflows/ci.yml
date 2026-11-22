@@ -19,8 +19,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - run: python3 .github/scripts/plugin_index.py validate
-      - run: python3 -m py_compile .github/scripts/plugin_index.py plugins/*/*.py
+      - run: python3 scripts/plugin_index.py validate
+      - run: python3 -m py_compile scripts/*.py plugins/*/*.py
 
   build:
     name: Build (${{ matrix.os }})

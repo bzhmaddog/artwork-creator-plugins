@@ -42,7 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - id: plugin
-        run: python3 .github/scripts/plugin_index.py resolve "$TAG" >> "$GITHUB_OUTPUT"
+        run: python3 scripts/plugin_index.py resolve "$TAG" >> "$GITHUB_OUTPUT"
       - name: Not published yet
         env:
           GH_TOKEN: ${{ github.token }}
@@ -139,7 +139,7 @@ jobs:
         if: env.KIND == 'library'
       - name: Index entry
         run: |
-          python3 .github/scripts/plugin_index.py prepare "$TAG" --assets dist \
+          python3 scripts/plugin_index.py prepare "$TAG" --assets dist \
             --base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
             --out "$RUNNER_TEMP/entry.json" --notes "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/entry.json"
@@ -155,7 +155,7 @@ jobs:
           gh release upload "$TAG" dist/*
           gh release edit "$TAG" --draft=false --latest=false
       - name: Verify downloads
-        run: python3 .github/scripts/plugin_index.py verify "$RUNNER_TEMP/entry.json"
+        run: python3 scripts/plugin_index.py verify "$RUNNER_TEMP/entry.json"
       - uses: actions/upload-artifact@v4
         with:
           name: index-entry
@@ -192,8 +192,8 @@ jobs:
           for attempt in 1 2 3 4 5; do
             git fetch origin "$BRANCH"
             git reset --hard "origin/$BRANCH"
-            python3 .github/scripts/plugin_index.py merge "$RUNNER_TEMP/entry.json"
-            python3 .github/scripts/plugin_index.py validate
+            python3 scripts/plugin_index.py merge "$RUNNER_TEMP/entry.json"
+            python3 scripts/plugin_index.py validate
             git commit -am "Index $TAG"
             if git push origin "HEAD:$BRANCH"; then exit 0; fi
             sleep $((attempt * 5))

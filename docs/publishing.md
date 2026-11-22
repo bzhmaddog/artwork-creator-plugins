@@ -75,7 +75,9 @@ cargo-zigbuild. See the top of the `Makefile`.
 
    A Rust plugin has `"kind": "library"` and no `version`, `script` or `sdk`: its version is
    the one in its `Cargo.toml`, and its ABI version is read from the SDK when it's released.
-4. Try it in the app: `make install` copies every plugin into `../artwork-creator/plugins`.
+4. Try it in the app: `make install` copies every plugin into `../artwork-creator/plugins`,
+   or install it from the plugin manager with `make serve` (see
+   [Trying plugins before a release](#trying-plugins-before-a-release)).
 5. `make check`, then commit and push or open a pull request. CI runs the same checks
    and builds on Linux and Windows.
 6. Release it as below. The plugin shows up in `plugins.json` with its first release.
@@ -85,7 +87,8 @@ cargo-zigbuild. See the top of the `Makefile`.
 1. **Pull first.** Every release commits to `plugins.json` on `main`, so your copy may be
    behind: `git pull`.
 2. **Bump the version**:
-   - Rust: `version` in `plugins/<id>/Cargo.toml` (then `make linux` to update `Cargo.lock`).
+   - Rust: `version` in `plugins/<id>/Cargo.toml`, then `cargo update -p <id>` to update
+     `Cargo.lock` (the builds and checks use `--locked` and fail until it matches).
    - Python: `version` in `plugins/<id>/plugin.json`. You can also update the version
      passed to `Plugin(...)` in the script to match.
 
@@ -116,6 +119,34 @@ cargo-zigbuild. See the top of the `Makefile`.
 Several plugins can be released at once. Each tag runs its own workflow, and their
 `plugins.json` commits go in one after another.
 
+## Trying plugins before a release
+
+`make serve` runs a plugin repository on this machine, made from the working tree: the
+same list the Release workflow would write, but with every file served by the local
+server instead of a GitHub Release. Nothing needs to be committed, tagged or pushed.
+
+```sh
+make serve        # http://127.0.0.1:8765/plugins.json, Ctrl+C to stop
+```
+
+In the app's plugin manager, *Repositories* tab, add `http://127.0.0.1:8765/plugins.json`
+(the app takes an `http://` address only for this machine), then install or update from
+the *Plugins* tab.
+
+- Every fetch of the list reads the manifests, rebuilds the Rust plugins (`cargo build`, a
+  no-op when nothing changed) and hashes the files again, so an edit or a version bump shows
+  up the next time the app reads the list, without restarting the server. A version bumped
+  in a `Cargo.toml` is written into `Cargo.lock` on that fetch. A build error comes back as
+  the error of the list, and in the server's output.
+- Only the working tree's version of each plugin is listed. The app offers an update only
+  to a higher version than the one installed, so bump the version to see a change as an
+  update, or remove the plugin and install it again.
+- A Rust plugin is built for Linux only by default (`SERVE_TARGETS`). For the app on
+  Windows, reaching WSL's `localhost`, add the Windows build:
+  `make serve SERVE_TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"`. A file
+  that hasn't been built is left out of the list.
+- Another port: `make serve SERVE_PORT=9000`.
+
 ## When something goes wrong
 
 **The workflow failed before publishing** (wrong version, build error). Nothing is
@@ -136,8 +167,8 @@ job failed, for example on a protected `main`). Fix the cause and *Re-run failed
 Or add the entry by hand: download the run's `index-entry` artifact (`entry.json`), then:
 
 ```sh
-python3 .github/scripts/plugin_index.py merge entry.json
-python3 .github/scripts/plugin_index.py validate
+python3 scripts/plugin_index.py merge entry.json
+python3 scripts/plugin_index.py validate
 git commit -am "Index halftone-0.2.0" && git push
 ```
 

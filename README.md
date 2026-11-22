@@ -40,6 +40,9 @@ that tag, checks their hashes, and commits the new version to `plugins.json` on 
 The whole process, adding a new plugin, and what to do when a release fails:
 [docs/publishing.md](docs/publishing.md).
 
+To try plugins in the app before releasing them, `make serve` serves the working tree
+as a local repository: see [Trying plugins before a release](docs/publishing.md#trying-plugins-before-a-release).
+
 **CI** checks every push and pull request: the manifests and `plugins.json`, and that
 everything builds (`make check` runs the same checks locally).
 
