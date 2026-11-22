@@ -39,6 +39,12 @@ impl Effect for Halftone {
             Param::float("angle", "Angle", 0.0, 90.0, 45.0)
                 .unit("°")
                 .decimals(0),
+            Param::float("offset_x", "X offset", -100.0, 100.0, 0.0)
+                .unit(" %")
+                .decimals(0),
+            Param::float("offset_y", "Y offset", -100.0, 100.0, 0.0)
+                .unit(" %")
+                .decimals(0),
             Param::choice(
                 "style",
                 "Dots",
@@ -64,10 +70,15 @@ impl Effect for Halftone {
         let ink = v.color("ink").map(|c| c as f32);
         let paper = v.color("paper").map(|c| c as f32);
         let (w, h) = (img.width() as f32, img.height() as f32);
+        let (ox, oy) = (offset(v, "offset_x") * cell, offset(v, "offset_y") * cell);
 
-        // Screen coordinates (u, v) are the image's, turned by the angle.
-        let to_screen = |x: f32, y: f32| (x * cos + y * sin, -x * sin + y * cos);
-        let to_image = |u: f32, v: f32| (u * cos - v * sin, u * sin + v * cos);
+        // Screen coordinates (u, v) are the image's, shifted by the offset and turned
+        // by the angle.
+        let to_screen = |x: f32, y: f32| {
+            let (x, y) = (x - ox, y - oy);
+            (x * cos + y * sin, -x * sin + y * cos)
+        };
+        let to_image = |u: f32, v: f32| (u * cos - v * sin + ox, u * sin + v * cos + oy);
         let corners = [(0.0, 0.0), (w, 0.0), (0.0, h), (w, h)].map(|(x, y)| to_screen(x, y));
         let (u0, v0) = corners
             .iter()
@@ -162,6 +173,15 @@ impl Effect for Halftone {
     }
 }
 
+/// A pattern offset, as a share of the dot spacing; none in a project saved before
+/// there were offsets.
+fn offset(v: &Values, key: &str) -> f32 {
+    v.json()
+        .get(key)
+        .and_then(|x| x.as_f64())
+        .map_or(0.0, |x| (x as f32 / 100.0).clamp(-1.0, 1.0))
+}
+
 /// Even dots on a square grid, sizes in mm.
 struct DotGrid;
 
@@ -187,6 +207,12 @@ impl Generator for DotGrid {
             Param::float("angle", "Angle", 0.0, 90.0, 45.0)
                 .unit("°")
                 .decimals(0),
+            Param::float("offset_x", "X offset", -100.0, 100.0, 0.0)
+                .unit(" %")
+                .decimals(0),
+            Param::float("offset_y", "Y offset", -100.0, 100.0, 0.0)
+                .unit(" %")
+                .decimals(0),
             Param::color("ink", "Ink", [0, 0, 0, 255]),
             Param::color("paper", "Paper", [255, 255, 255, 0]),
         ]
@@ -200,11 +226,12 @@ impl Generator for DotGrid {
         // The dot's diameter is this share of the spacing.
         let radius = cell * v.f32("dot_size") / 200.0;
         let (sin, cos) = v.f32("angle").to_radians().sin_cos();
+        let (ox, oy) = (offset(v, "offset_x") * cell, offset(v, "offset_y") * cell);
         let ink = v.color("ink").map(|c| c as f32);
         let paper = v.color("paper").map(|c| c as f32);
         img.par_rows(|y, row| {
             for (x, px) in row.as_chunks_mut::<4>().0.iter_mut().enumerate() {
-                let (x, y) = (x as f32 + 0.5, y as f32 + 0.5);
+                let (x, y) = (x as f32 + 0.5 - ox, y as f32 + 0.5 - oy);
                 let (u, w) = (x * cos + y * sin, -x * sin + y * cos);
                 // Distance to the center of the nearest dot.
                 let du = u - ((u / cell).floor() + 0.5) * cell;
@@ -257,6 +284,40 @@ mod tests {
         assert_eq!(none, 0.0);
         // Saved before Dot size: full size.
         assert_eq!(ink(&format!("{{{base}}}")), full);
+    }
+
+    /// The pixels of a 64 x 64 mid-gray square after the effect with these values.
+    fn dots(json: &str) -> Vec<u8> {
+        let (w, h) = (64u32, 64u32);
+        let mut px = [128u8, 128, 128, 255].repeat((w * h) as usize);
+        let mut img = Image::new(&mut px, w, h, w as usize * 4).unwrap();
+        Halftone
+            .apply(&mut img, &Values::from_json(json).unwrap(), 1.0)
+            .unwrap();
+        px
+    }
+
+    #[test]
+    fn offset_shifts_the_dots() {
+        let base =
+            r##""size": 8, "angle": 0, "style": "ink", "ink": "#000000ff", "paper": "#ffffffff""##;
+        let none = dots(&format!("{{{base}}}"));
+        assert_eq!(
+            dots(&format!("{{{base}, \"offset_x\": 0, \"offset_y\": 0}}")),
+            none
+        );
+        // Half the spacing to the right: column x now looks like column x - 4.
+        let right = dots(&format!("{{{base}, \"offset_x\": 50}}"));
+        let down = dots(&format!("{{{base}, \"offset_y\": 50}}"));
+        assert_ne!(right, none);
+        assert_ne!(down, none);
+        let at = |px: &[u8], x: usize, y: usize| px[(y * 64 + x) * 4];
+        for y in 8..56 {
+            for x in 8..56 {
+                assert_eq!(at(&right, x, y), at(&none, x - 4, y), "{x} {y}");
+                assert_eq!(at(&down, x, y), at(&none, x, y - 4), "{x} {y}");
+            }
+        }
     }
 
     #[test]

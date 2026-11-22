@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """Serve the working tree's plugins as a plugin repository on this machine, to try them in
 the app before a release (make serve). The list is the one the Release workflow would
-write (plugin_index.plugin_entry), with every file served from here instead of a GitHub
-Release, and it's made again on every fetch: the Rust plugins are rebuilt and every file is
+write (plugin_index.plugin_entry), made from the manifests and builds only (the committed
+plugins.json isn't read), with every file served from here instead of a GitHub Release,
+and it's made again on every fetch: the Rust plugins are rebuilt and every file is
 hashed again.
 
 Standard library only (Python 3.11+).
@@ -16,7 +17,7 @@ import subprocess
 import sys
 import threading
 
-from plugin_index import INDEX, ROOT, Error, load_plugin, plugin_dirs, plugin_entry, sdk_abi
+from plugin_index import ROOT, Error, load_plugin, plugin_dirs, plugin_entry, sdk_abi
 
 # Platform key in the index -> Rust target whose target/ folder has its file.
 PLATFORM_TARGETS = {"linux-x86_64": "x86_64-unknown-linux-gnu", "windows-x86_64": "x86_64-pc-windows-gnu"}
@@ -53,7 +54,6 @@ class LocalRepository:
             self.cargo_build()
             abi = None
             plugins = []
-            released = json.loads(INDEX.read_text(encoding="utf-8"))
             for folder in plugin_dirs():
                 m = load_plugin(folder)
                 files = {}
@@ -72,7 +72,9 @@ class LocalRepository:
                 if m["kind"] == "library" and abi is None:
                     abi = sdk_abi(locked=False)
                 changes = f"Local build of {m['id']} {m['version']} (working tree)"
-                plugins.append(plugin_entry(folder, m, files, changes, abi, released))
+                # Made from the working tree alone, not from the committed plugins.json: a
+                # version has a compatible_from only when its manifest gives one.
+                plugins.append(plugin_entry(folder, m, files, changes, abi))
             return {"format": 1, "name": "Local plugins (working tree)", "plugins": plugins}
 
 

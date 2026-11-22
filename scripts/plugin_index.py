@@ -156,6 +156,8 @@ def load_plugin(folder):
     if not path.is_file():
         raise Error(f"{folder.name}: no plugin.json")
     m = json.loads(path.read_text(encoding="utf-8"))
+    if "compat_from" in m:
+        raise Error(f"{path.name} of {folder.name}: compat_from is spelled compatible_from")
     missing = [k for k in REQUIRED if not m.get(k)]
     if missing:
         raise Error(f"{path.name} of {folder.name}: missing {', '.join(missing)}")

@@ -157,6 +157,9 @@ the *Plugins* tab.
 - Only the working tree's version of each plugin is listed. The app offers an update only
   to a higher version than the one installed, so bump the version to see a change as an
   update, or remove the plugin and install it again.
+- The list is made from the manifests and builds only; the committed `plugins.json` isn't
+  read. So a version has a `compatible_from` only when its manifest gives one; nothing is
+  carried over from the previous version as a release would.
 - A Rust plugin is built for Linux only by default (`SERVE_TARGETS`). For the app on
   Windows, reaching WSL's `localhost`, add the Windows build:
   `make serve SERVE_TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"`. A file
