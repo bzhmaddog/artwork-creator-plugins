@@ -10,8 +10,34 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
-      "latest": "0.1.0",
+      "latest": "1.0.0",
       "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-22",
+          "abi": 2,
+          "min_app": "0.16.0",
+          "compatible_from": "0.1.0",
+          "effects": [
+            "Halftone"
+          ],
+          "generators": [
+            "Dot grid"
+          ],
+          "changes": "Added x and y offset parameters",
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.0.0/libhalftone.so",
+              "sha256": "6c3a10e64396d3e708690b3ba17a5d3668c43096a2e07badd9285422857a97f5",
+              "size": 525776
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.0.0/halftone.dll",
+              "sha256": "5d48c51d394915bd11878d93d2c8e7ffce1a2d6a841dc7af13825c8b414ad5dd",
+              "size": 282112
+            }
+          }
+        },
         {
           "version": "0.1.0",
           "released": "2026-11-22",
