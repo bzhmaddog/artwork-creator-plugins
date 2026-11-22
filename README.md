@@ -15,6 +15,7 @@ Each plugin is a folder of `plugins/` named after its id, with a `plugin.json` m
 | `id`, `name`, `description`, `author`, `homepage`, `license` | shown in the plugin manager |
 | `kind` | `library` (a Rust crate, built as `.so` and `.dll`) or `python` (a script) |
 | `min_app` | oldest Artwork Creator version the plugin runs on |
+| `effects`, `generators` | display names of what it provides (the `name` each one has in the code), copied into each version in the index; at least one of the two, and checked against the code |
 | `version` | Python only (a Rust plugin's version is the one in its `Cargo.toml`) |
 | `script` | Python only: the file to publish |
 | `sdk` | Python only: the Python SDK version it was written for |

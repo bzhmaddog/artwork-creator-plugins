@@ -69,9 +69,16 @@ cargo-zigbuild. See the top of the `Makefile`.
      "version": "1.0.0",
      "script": "my_effect.py",
      "min_app": "0.16.0",
-     "sdk": "0.3.0"
+     "sdk": "0.3.0",
+     "effects": ["My effect"],
+     "generators": ["My generator"]
    }
    ```
+
+   `effects` and `generators` list the names the code exports (an Effect's or Generator's
+   `name`), so the plugin manager can show them before the plugin is installed. Leave out a
+   list that would be empty, and update them in the version that adds or removes one:
+   `make validate` checks them against the code.
 
    A Rust plugin has `"kind": "library"` and no `version`, `script` or `sdk`: its version is
    the one in its `Cargo.toml`, and its ABI version is read from the SDK when it's released.

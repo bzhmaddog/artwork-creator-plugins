@@ -2,8 +2,8 @@
 """The plugin index (plugins.json) and the releases it points to.
 
 Each plugin is a folder of plugins/ with a plugin.json manifest (id, name, description, author,
-homepage, license, kind, min_app; for a Python plugin also version, script and sdk). A
-release is a tag <folder>-<version>; the Release workflow uses these commands:
+homepage, license, kind, min_app, and effects and/or generators: the display names of what it
+provides; for a Python plugin also version, script and sdk). A release is a tag <folder>-<version>; the Release workflow uses these commands:
 
   resolve TAG          check the tag against the plugin and print what to build, as
                        key=value lines for $GITHUB_OUTPUT
@@ -39,7 +39,9 @@ KINDS = ("library", "python")
 REQUIRED = ("id", "name", "description", "author", "license", "kind", "min_app")
 # Fields of a manifest copied to the plugin's entry in the index, and to each version.
 PLUGIN_FIELDS = ("id", "name", "description", "author", "homepage", "license", "kind")
-VERSION_FIELDS = ("min_app", "sdk")
+VERSION_FIELDS = ("min_app", "sdk", "effects", "generators")
+# What a plugin provides, as lists of display names (the names the code returns).
+PROVIDES = ("effects", "generators")
 PEP723_RE = re.compile(r"(?m)^# /// script\s*$\s(?P<content>(^#(| .*)$\s)+)^# ///$")
 
 
@@ -49,6 +51,61 @@ class Error(Exception):
 
 def semver(v):
     return tuple(int(x) for x in v.split("."))
+
+
+def provides_errors(d):
+    """Problems with the effects and generators lists of a manifest or an index version."""
+    errors = []
+    for k in PROVIDES:
+        if k not in d:
+            continue
+        v = d[k]
+        if not isinstance(v, list) or not v or not all(isinstance(s, str) and s.strip() for s in v):
+            errors.append(f"{k} must be a non-empty list of non-empty strings")
+        elif len(set(v)) != len(v):
+            errors.append(f"{k} has a name twice")
+    if not any(d.get(k) for k in PROVIDES):
+        errors.append("needs at least one name in effects or generators")
+    return errors
+
+
+PY_CLASS_RE = re.compile(r"(?m)^class\s+\w+\s*\(\s*(Effect|Generator)\s*\)\s*:(?P<body>(?:\n(?:[ \t].*|[ \t]*))*)")
+PY_NAME_RE = re.compile(r"(?m)^[ \t]+name\s*=\s*(\"[^\"\n]*\"|'[^'\n]*')")
+RS_EXPORT_RE = re.compile(r"export_plugin!\s*\((?P<body>.*?)\)\s*;", re.S)
+RS_NAME_RE = re.compile(r"fn\s+name\s*\(\s*&\s*self\s*\)\s*->\s*&\s*(?:'static\s+)?str\s*\{\s*\"([^\"\\]*)\"\s*\}")
+
+
+def code_provides(folder, m):
+    """The effect and generator names a plugin's source declares, read with regexes (no build):
+    for Python the name of each Effect and Generator subclass, for Rust the fn name of each
+    type in export_plugin!'s effects and generators."""
+    found = {k: [] for k in PROVIDES}
+    if m["kind"] == "python":
+        src = (folder / m["script"]).read_text(encoding="utf-8")
+        for c in PY_CLASS_RE.finditer(src):
+            name = PY_NAME_RE.search(c["body"])
+            if not name:
+                raise Error(f"{folder.name}: a {c[1]} subclass in {m['script']} has no name = \"...\"")
+            found["effects" if c[1] == "Effect" else "generators"].append(name[1][1:-1])
+        return found
+    src = "\n".join(p.read_text(encoding="utf-8") for p in sorted((folder / "src").rglob("*.rs")))
+    export = RS_EXPORT_RE.search(src)
+    if not export:
+        raise Error(f"{folder.name}: no export_plugin!(...) found in src/")
+    for k, trait in (("effects", "Effect"), ("generators", "Generator")):
+        listed = re.search(rf"\b{k}\s*:\s*\[(?P<types>[^\]]*)\]", export["body"])
+        for t in (listed["types"].split(",") if listed else []):
+            t = t.strip()
+            if not t:
+                continue
+            if not re.fullmatch(r"\w+", t):
+                raise Error(f"{folder.name}: can't read {t!r} in export_plugin!'s {k}")
+            impl = re.search(rf"(?m)^impl\s+{trait}\s+for\s+{t}\s*\{{(?P<rest>.*?)(?=^impl\b|\Z)", src, re.S)
+            name = impl and RS_NAME_RE.search(impl["rest"])
+            if not name:
+                raise Error(f"{folder.name}: no literal fn name in impl {trait} for {t}")
+            found[k].append(name[1])
+    return found
 
 
 def plugin_dirs():
@@ -83,6 +140,9 @@ def load_plugin(folder):
         if not script or not (folder / script).is_file():
             raise Error(f"{folder.name}: script {script!r} not found")
         m["files"] = {"any": script}
+    problems = provides_errors(m)
+    if problems:
+        raise Error(f"{folder.name}: {'; '.join(problems)}")
     if not VERSION_RE.match(m.get("version", "")):
         raise Error(f"{folder.name}: version {m.get('version')!r} is not X.Y.Z")
     return m
@@ -256,7 +316,12 @@ def cmd_validate(args):
     errors = []
     for folder in plugin_dirs():
         try:
-            load_plugin(folder)
+            m = load_plugin(folder)
+            code = code_provides(folder, m)
+            for k in PROVIDES:
+                declared, actual = set(m.get(k, [])), set(code[k])
+                if declared != actual:
+                    errors.append(f"{folder.name}: plugin.json {k} {sorted(declared)} don't match the code's {sorted(actual)}")
         except (Error, OSError, ValueError, KeyError) as e:
             errors.append(str(e))
     for folder in PLUGINS.iterdir():
@@ -283,6 +348,9 @@ def cmd_validate(args):
             seen.add(v.get("version"))
             if not v.get("files"):
                 errors.append(f"{where} has no files")
+            errors += [f"{where}: {e}" for e in provides_errors(v)]
+            if v.get("abi") == 1 and "generators" in v:
+                errors.append(f"{where}: ABI 1 has no generators")
             for platform, f in v.get("files", {}).items():
                 tag = f"{pid}-{v.get('version')}"
                 if not re.fullmatch(r"https://github\.com/[^/]+/[^/]+/releases/download/" + re.escape(tag) + r"/[^/]+", f.get("url", "")):

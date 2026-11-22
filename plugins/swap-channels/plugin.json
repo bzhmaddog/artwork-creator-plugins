@@ -9,5 +9,8 @@
   "version": "1.0.0",
   "script": "swap_channels.py",
   "min_app": "0.16.0",
-  "sdk": "0.3.0"
+  "sdk": "0.3.0",
+  "effects": [
+    "Swap channels"
+  ]
 }

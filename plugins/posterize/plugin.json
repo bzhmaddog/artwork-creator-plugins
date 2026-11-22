@@ -9,5 +9,11 @@
   "version": "1.0.0",
   "script": "posterize.py",
   "min_app": "0.16.0",
-  "sdk": "0.3.0"
+  "sdk": "0.3.0",
+  "effects": [
+    "Posterize"
+  ],
+  "generators": [
+    "Bands"
+  ]
 }
