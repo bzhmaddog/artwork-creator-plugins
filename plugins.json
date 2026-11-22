@@ -31,6 +31,56 @@
           }
         }
       ]
+    },
+    {
+      "id": "posterize",
+      "name": "Posterize",
+      "description": "Posterize effect and bands generator",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/posterize",
+      "license": "MIT",
+      "kind": "python",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-22",
+          "min_app": "0.16.0",
+          "sdk": "0.3.0",
+          "changes": "First release",
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/posterize-1.0.0/posterize.py",
+              "sha256": "d3e9c742b313113bdb9b65e758436a0297e2846efeadf500dc0b06f9db7a5105",
+              "size": 2729
+            }
+          }
+        }
+      ]
+    },
+    {
+      "id": "swap-channels",
+      "name": "Swap channels",
+      "description": "Swap two color channels of an image",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/swap-channels",
+      "license": "MIT",
+      "kind": "python",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-22",
+          "min_app": "0.16.0",
+          "sdk": "0.3.0",
+          "changes": "First release",
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/swap-channels-1.0.0/swap_channels.py",
+              "sha256": "b8be5a9e01c55a64e11df1222d7d8fd4b544bd71e613e5bcd87ef1c3a35e30ae",
+              "size": 977
+            }
+          }
+        }
+      ]
     }
   ]
 }

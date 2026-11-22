@@ -166,13 +166,15 @@ jobs:
   index:
     name: Update plugins.json
     needs: publish
+    # Without this, the job is skipped whenever build was (a Python plugin): a job's default
+    # condition, success(), counts every job upstream of it, skipped ones as failures.
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # One release at a time writes plugins.json.
-    concurrency:
-      group: plugin-index
-      cancel-in-progress: false
+    # No concurrency group: GitHub keeps only one pending run per group and cancels the
+    # others, which would drop releases tagged together. Concurrent pushes are handled by
+    # the fetch, merge and retry below instead.
     env:
       BRANCH: ${{ github.event.repository.default_branch }}
     steps:
