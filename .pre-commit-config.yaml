@@ -1,0 +1,66 @@
+# Git hooks, run by pre-commit (https://pre-commit.com), from requirements-dev.txt:
+#   .venv/bin/pre-commit install       # once per clone: installs the pre-commit and pre-push hooks
+#   .venv/bin/pre-commit run --all-files
+# On commit: file hygiene, ruff (lint, with fixes, and format), mypy, cargo fmt and the
+# manifest/index validation. On push: the Python and Rust tests. Keep the ruff and mypy
+# revs in step with requirements-dev.in.
+default_install_hook_types: [pre-commit, pre-push]
+default_stages: [pre-commit]
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+      - id: end-of-file-fixer
+      - id: mixed-line-ending
+        args: [--fix=lf]
+      - id: check-merge-conflict
+      - id: check-json
+      - id: check-toml
+      - id: check-yaml
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.17.6
+    hooks:
+      - id: ruff-check
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v2.4.1
+    hooks:
+      # The files and settings of mypy.ini, as make lint checks them, whatever is staged.
+      - id: mypy
+        args: []
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: cargo-fmt
+        name: cargo fmt
+        entry: cargo fmt --all
+        language: system
+        types: [rust]
+        pass_filenames: false
+      - id: plugin-index
+        name: validate manifests and plugins.json
+        entry: python3 scripts/plugin_index.py validate
+        language: system
+        files: ^(plugins/|plugins\.json$|Cargo\.toml$|scripts/plugin_index\.py$)
+        pass_filenames: false
+      - id: python-tests
+        name: Python tests
+        entry: python3 -m unittest discover -s tests -t .
+        language: system
+        files: ^(scripts|tests|plugins)/.*\.py$
+        pass_filenames: false
+        stages: [pre-push]
+      - id: rust-tests
+        name: Rust tests
+        entry: cargo test --locked --workspace
+        language: system
+        files: ^(plugins/.*\.rs|Cargo\.(toml|lock)|plugins/.*/Cargo\.toml)$
+        pass_filenames: false
+        stages: [pre-push]

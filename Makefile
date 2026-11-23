@@ -1,53 +1,114 @@
 # Builds and checks the plugins. Release builds of the Rust plugins go to target/<target>/release,
 # like the app's Makefile; the Release workflow (.github/workflows/release.yml) does its own builds.
 #
-# Needs: cargo, python3 (3.11+); for windows the x86_64-pc-windows-gnu target and MinGW
-#   (rustup target add x86_64-pc-windows-gnu; apt install gcc-mingw-w64-x86-64);
-#   for linux-portable zig and cargo-zigbuild.
+# Needs rustup (https://rustup.rs) and python3 (3.11+); make install adds the rest, except
+# MinGW for the Windows build, a system package (sudo apt install gcc-mingw-w64-x86-64).
 #
 # Common targets:
+#   make install      install the tools to build, test, lint and serve: the Rust targets and
+#                     components, cargo-zigbuild and cargo-llvm-cov, zig in .tools/, a .venv
+#                     with requirements-dev.txt, and the git hooks
 #   make              build every Rust plugin for Linux and Windows (all)
 #   make linux        build for Linux, against this machine's glibc
 #   make linux-portable  build for Linux against glibc GLIBC, like the released files
 #   make windows      build for Windows (cross-compiled with MinGW)
 #   make dist         the files a release publishes, for every plugin, in dist/
-#   make install      copy the plugins into the app's plugins folder (APP_PLUGINS), where
-#                     a debug build run from the app's repository (make run) finds them
 #   make serve        serve the working tree's plugins as a repository at
 #                     http://127.0.0.1:8765/plugins.json, rebuilt on every fetch, to try
 #                     them in the app before a release (SERVE_TARGETS, SERVE_PORT)
-#   make check        everything CI checks, plus rustfmt and clippy
-#   make test         run the Rust plugins' tests
-#   make fmt          format the Rust code
+#   make check        everything CI checks (tests included), plus rustfmt and clippy
+#   make test         run every test: the Rust plugins' and the Python ones (scripts and
+#                     plugins, in tests/)
+#   make coverage     the tests' coverage, as reports in coverage/: Python (coverage.py,
+#                     requirements-dev.txt; fails under fail_under in .coveragerc) and
+#                     Rust (cargo-llvm-cov: cargo install cargo-llvm-cov)
+#   make lint         lint and type-check the Python code (ruff, ruff format --check, mypy;
+#                     requirements-dev.txt)
+#   make fmt          format the Rust and the Python code
+#   make lock         regenerate requirements-dev.txt (hash-locked) from requirements-dev.in
+#   make hooks        install the git hooks of .pre-commit-config.yaml (pre-commit, pre-push)
+#   make pre-commit   run the commit hooks on every file, not only the staged ones
+#                     (STAGE=pre-push: the push hooks, the tests)
 #   make tag PLUGIN=halftone MSG="Line screen added"
 #                     tag the plugin's current version for release (pushing it releases)
 #   make clean        remove build outputs
 
 CARGO   ?= cargo
-PYTHON  ?= python3
+# .venv's Python when there is one (make install makes it), which has the tools of lint,
+# coverage and the hooks.
+PYTHON  ?= $(if $(wildcard .venv/bin/python),.venv/bin/python,python3)
 LINUX   := x86_64-unknown-linux-gnu
 WINDOWS := x86_64-pc-windows-gnu
 INDEX   := $(PYTHON) scripts/plugin_index.py
 DIST    := dist
+COVERAGE ?= $(PYTHON) -m coverage
+RUFF    ?= $(PYTHON) -m ruff
+MYPY    ?= $(PYTHON) -m mypy
 
 # Oldest glibc the released Linux files run on; the same as the app (GLIBC in its Makefile)
 # and as the Release workflow.
 GLIBC   := 2.28
 
-# The app's repository next to this one; make install copies the plugins into its plugins/.
-APP_PLUGINS ?= ../artwork-creator/plugins
+# Tool versions make install sets up. zig and cargo-zigbuild are the Release workflow's
+# (.github/workflows/release.yml), cargo-llvm-cov the CI's: raise them together.
+ZIG_VERSION            := 0.14.1
+ZIG_SHA256             := 24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
+ZIG_DIR                := .tools/zig-x86_64-linux-$(ZIG_VERSION)
+CARGO_ZIGBUILD_VERSION := 0.24.1
+CARGO_LLVM_COV_VERSION := 0.9.2
+# The Python that makes .venv.
+BOOTSTRAP_PYTHON       ?= python3
 
-PY_PLUGINS := $(wildcard plugins/*/*.py)
+# The Python plugins' scripts; a plugin's tests (test_*.py next to it) aren't part of it.
+PY_PLUGIN_TESTS := $(wildcard plugins/*/test_*.py)
+PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
+PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
-.PHONY: all linux linux-portable windows dist install serve check validate test fmt clippy tag clean
+.PHONY: all install install-rust install-zig install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust lint hooks pre-commit fmt clippy tag clean
 
 all: linux windows
+
+# Safe to run again: each step skips or updates what's already there.
+install: install-rust install-zig install-python
+	@if [ -d .git ]; then .venv/bin/python -m pre_commit install; fi
+	@command -v x86_64-w64-mingw32-gcc >/dev/null || \
+	  echo "note: MinGW not found; the Windows build (make windows, dist) needs it: sudo apt install gcc-mingw-w64-x86-64"
+
+install-rust:
+	@command -v rustup >/dev/null || { echo "rustup is needed first: https://rustup.rs"; exit 1; }
+	rustup component add rustfmt clippy llvm-tools-preview
+	rustup target add $(LINUX) $(WINDOWS)
+	$(CARGO) install --locked cargo-zigbuild@$(CARGO_ZIGBUILD_VERSION) cargo-llvm-cov@$(CARGO_LLVM_COV_VERSION)
+
+# zig for make linux-portable, checked against its SHA-256 like in the Release workflow.
+install-zig:
+	@if [ -x $(ZIG_DIR)/zig ]; then echo "zig $(ZIG_VERSION) is in $(ZIG_DIR)"; else \
+	  mkdir -p .tools && \
+	  curl --proto '=https' --tlsv1.2 -fsSL -o .tools/zig.tar.xz \
+	    https://ziglang.org/download/$(ZIG_VERSION)/zig-x86_64-linux-$(ZIG_VERSION).tar.xz && \
+	  echo "$(ZIG_SHA256)  .tools/zig.tar.xz" | sha256sum -c - && \
+	  tar -xJf .tools/zig.tar.xz -C .tools && rm .tools/zig.tar.xz; fi
+
+install-python:
+	@$(BOOTSTRAP_PYTHON) -c 'import sys; sys.exit(sys.version_info < (3, 11))' || \
+	  { echo "Python 3.11+ is needed ($(BOOTSTRAP_PYTHON) is older)"; exit 1; }
+	test -x .venv/bin/python || $(BOOTSTRAP_PYTHON) -m venv .venv
+	.venv/bin/python -m pip install -q --require-hashes --only-binary ':all:' -r requirements-dev.txt
+
+# requirements-dev.txt from requirements-dev.in: every dependency pinned, with its hashes
+# (pip-tools, in its own venv in .tools/).
+lock:
+	test -x .tools/pip-tools/bin/pip-compile || \
+	  { $(BOOTSTRAP_PYTHON) -m venv .tools/pip-tools && .tools/pip-tools/bin/pip install -q pip-tools; }
+	CUSTOM_COMPILE_COMMAND="make lock" .tools/pip-tools/bin/pip-compile -q --generate-hashes \
+	  --allow-unsafe --strip-extras -o requirements-dev.txt requirements-dev.in
 
 linux:
 	$(CARGO) build --release --locked --workspace --target $(LINUX)
 
+# With the zig of make install, when it's there.
 linux-portable:
-	$(CARGO) zigbuild --release --locked --workspace --target $(LINUX).$(GLIBC)
+	PATH="$(CURDIR)/$(ZIG_DIR):$$PATH" $(CARGO) zigbuild --release --locked --workspace --target $(LINUX).$(GLIBC)
 
 windows:
 	$(CARGO) build --release --locked --workspace --target $(WINDOWS)
@@ -58,11 +119,6 @@ dist: linux-portable windows
 	cp target/$(LINUX)/release/*.so target/$(WINDOWS)/release/*.dll $(DIST)/
 	cp $(PY_PLUGINS) $(DIST)/
 
-install: linux windows
-	mkdir -p $(APP_PLUGINS)
-	cp target/$(LINUX)/release/*.so target/$(WINDOWS)/release/*.dll $(APP_PLUGINS)/
-	cp $(PY_PLUGINS) $(APP_PLUGINS)/
-
 # The Rust targets make serve rebuilds on every fetch of the list; add $(WINDOWS) to serve
 # the .dll too, e.g. to a Windows app reaching WSL's localhost.
 SERVE_TARGETS ?= $(LINUX)
@@ -71,19 +127,62 @@ SERVE_PORT    ?= 8765
 serve:
 	$(PYTHON) scripts/serve.py --port $(SERVE_PORT) $(foreach t,$(SERVE_TARGETS),--build $(t))
 
-check: validate clippy
+check: validate lint test clippy
 	$(CARGO) fmt --all --check
 
 # What CI checks besides the builds: the manifests, plugins.json and the Python scripts.
 validate:
 	$(INDEX) validate
-	$(PYTHON) -m py_compile scripts/*.py $(PY_PLUGINS)
+	$(PYTHON) -m py_compile scripts/*.py $(PY_PLUGINS) $(PY_TESTS)
 
-test:
+test: test-rust test-python
+
+test-rust:
 	$(CARGO) test --locked --workspace
+
+# The scripts' tests (tests/) and the Python plugins' (plugins/*/test_*.py, which
+# tests/test_plugins.py collects), standard library only.
+test-python:
+	$(PYTHON) -m unittest discover -s tests -t .
+
+coverage: coverage-python coverage-rust
+
+# Settings in .coveragerc. The report comes last, so the reports are written even when
+# it fails on fail_under.
+coverage-python:
+	$(COVERAGE) erase
+	$(COVERAGE) run -m unittest discover -s tests -t .
+	$(COVERAGE) combine -q
+	$(COVERAGE) html
+	$(COVERAGE) xml
+	$(COVERAGE) report
+
+# coverage/rust.lcov for tools, coverage/html for people.
+coverage-rust:
+	mkdir -p coverage
+	$(CARGO) llvm-cov clean --workspace
+	$(CARGO) llvm-cov --no-report --locked --workspace
+	$(CARGO) llvm-cov report --lcov --output-path coverage/rust.lcov
+	$(CARGO) llvm-cov report --html --output-dir coverage
+	$(CARGO) llvm-cov report --summary-only
+
+# Settings in ruff.toml and mypy.ini.
+lint:
+	$(RUFF) check .
+	$(RUFF) format --check .
+	$(MYPY)
+
+hooks:
+	$(PYTHON) -m pre_commit install
+
+STAGE ?= pre-commit
+
+pre-commit:
+	$(PYTHON) -m pre_commit run --all-files --hook-stage $(STAGE)
 
 fmt:
 	$(CARGO) fmt --all
+	$(RUFF) format .
 
 clippy:
 	$(CARGO) clippy --locked --workspace --all-targets -- -D warnings
@@ -99,4 +198,4 @@ tag:
 
 clean:
 	$(CARGO) clean
-	rm -rf $(DIST)
+	rm -rf $(DIST) coverage

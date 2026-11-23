@@ -1,0 +1,22 @@
+# Ruff, the linter and formatter of the Python code (make lint, make fmt). Settings for
+# the scripts, the tests and the Python plugins, which run on Python 3.11+.
+target-version = "py311"
+line-length = 120
+
+[lint]
+select = [
+    "E", "W",  # pycodestyle
+    "F",       # pyflakes
+    "I",       # isort
+    "B",       # bugbear
+    "UP",      # pyupgrade
+    "SIM",     # simplify
+    "C4",      # comprehensions
+    "PTH",     # pathlib over os.path
+    "PLE", "PLW",  # pylint errors and warnings
+    "RUF",
+]
+
+[lint.per-file-ignores]
+# The SDK has a plugin declare its parameters as a list in a class attribute.
+"plugins/**/*.py" = ["RUF012"]

@@ -27,6 +27,14 @@ rustc-ice-*.txt
 # published as release assets. Cargo.lock is committed on purpose (--locked builds).
 dist/
 
+# Tools make install downloads (zig)
+.tools/
+
+# Coverage reports (make coverage)
+coverage/
+.coverage
+.coverage.*
+
 # Python
 __pycache__/
 *.py[cod]
@@ -53,4 +61,4 @@ desktop.ini
 .env
 .env.*
 .envrc
-.claude/settings.local.json
+.claude

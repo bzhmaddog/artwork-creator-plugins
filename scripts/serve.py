@@ -10,6 +10,7 @@ Standard library only (Python 3.11+).
 """
 
 import argparse
+import contextlib
 import hashlib
 import http.server
 import json
@@ -38,8 +39,13 @@ class LocalRepository:
     def cargo_build(self):
         for target in self.build:
             print(f"building for {target}", file=sys.stderr)
-            r = subprocess.run(["cargo", "build", "--release", "--workspace", "--target", target],
-                               cwd=ROOT, capture_output=True, text=True)
+            r = subprocess.run(
+                ["cargo", "build", "--release", "--workspace", "--target", target],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+                check=False,
+            )
             if r.returncode:
                 raise Error(f"cargo build --target {target} failed:\n{r.stderr[-4000:]}")
 
@@ -64,8 +70,11 @@ class LocalRepository:
                     data = path.read_bytes()
                     digest = hashlib.sha256(data).hexdigest()
                     self.files[digest] = (name, data)
-                    files[platform] = {"url": f"{self.base_url}/files/{digest}/{name}",
-                                       "sha256": digest, "size": len(data)}
+                    files[platform] = {
+                        "url": f"{self.base_url}/files/{digest}/{name}",
+                        "sha256": digest,
+                        "size": len(data),
+                    }
                 if not files:
                     print(f"{m['id']}: no file built, left out (make linux / make windows)", file=sys.stderr)
                     continue
@@ -78,9 +87,10 @@ class LocalRepository:
             return {"format": 1, "name": "Local plugins (working tree)", "plugins": plugins}
 
 
-def serve(host, port, build):
-    url_host = "127.0.0.1" if host in ("", "0.0.0.0", "::") else host
-    repo = LocalRepository(f"http://{url_host}:{port}", build)
+def make_server(host, port, build):
+    """The HTTP server of a LocalRepository, bound but not serving yet. With port 0 the
+    system picks a free port, which the list's URLs then use."""
+    repo = LocalRepository(None, build)
 
     class Handler(http.server.BaseHTTPRequestHandler):
         def send(self, status, body, content_type):
@@ -112,19 +122,29 @@ def serve(host, port, build):
         do_HEAD = do_GET
 
     server = http.server.ThreadingHTTPServer((host, port), Handler)
+    url_host = "127.0.0.1" if host in ("", "0.0.0.0", "::") else host
+    repo.base_url = f"http://{url_host}:{server.server_address[1]}"
+    return server, repo
+
+
+def serve(host, port, build):
+    server, repo = make_server(host, port, build)
     print(f"Local plugin repository: {repo.base_url}/plugins.json (Ctrl+C to stop)", file=sys.stderr)
-    try:
+    with contextlib.suppress(KeyboardInterrupt):
         server.serve_forever()
-    except KeyboardInterrupt:
-        pass
 
 
 def main():
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--host", default="127.0.0.1", help="address to listen on (default 127.0.0.1)")
     ap.add_argument("--port", type=int, default=8765)
-    ap.add_argument("--build", action="append", default=[], metavar="TARGET",
-                    help="Rust target to rebuild on every fetch of the list (repeatable)")
+    ap.add_argument(
+        "--build",
+        action="append",
+        default=[],
+        metavar="TARGET",
+        help="Rust target to rebuild on every fetch of the list (repeatable)",
+    )
     args = ap.parse_args()
     try:
         serve(args.host, args.port, args.build)

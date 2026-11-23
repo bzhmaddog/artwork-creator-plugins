@@ -1,0 +1,26 @@
+# Coverage of the Python code (make coverage-python; coverage.py from requirements-dev.txt): the scripts and the Python plugins,
+# measured while tests/ runs, including the scripts run as subprocesses by the tests.
+[run]
+branch = True
+source =
+    scripts
+    plugins
+patch = subprocess
+# A plugin's tests sit next to it, but aren't the code measured.
+omit =
+    plugins/*/test_*.py
+data_file = coverage/.coverage
+
+[report]
+show_missing = True
+# Lower it only on purpose; raise it as coverage grows.
+fail_under = 90
+skip_empty = True
+exclude_also =
+    if __name__ == .__main__.:
+
+[html]
+directory = coverage/python-html
+
+[xml]
+output = coverage/python.xml
