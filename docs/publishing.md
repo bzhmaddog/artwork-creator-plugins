@@ -31,6 +31,8 @@ Artwork Creator ◄── fetches plugins.json ─────────┘
   and its tag can't change, so a URL in `plugins.json` always serves the bytes its hash
   describes.
 
+[The Release workflow](release-workflow.md) details each job and where its data comes from.
+
 ## One-time setup
 
 On GitHub, in the repository's settings:
