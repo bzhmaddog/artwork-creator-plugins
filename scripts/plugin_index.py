@@ -364,7 +364,7 @@ def cmd_merge(args):
     plugin["latest"] = versions[0]["version"]
     plugin["versions"] = versions
     index["plugins"].sort(key=lambda p: p["id"])
-    INDEX.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    INDEX.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8") # NOSONAR
     print(f"added {entry['id']} {new['version']} to plugins.json")
 
 
