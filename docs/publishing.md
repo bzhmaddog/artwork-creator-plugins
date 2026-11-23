@@ -82,12 +82,14 @@ cargo-zigbuild. See the top of the `Makefile`.
 
    A Rust plugin has `"kind": "library"` and no `version`, `script` or `sdk`: its version is
    the one in its `Cargo.toml`, and its ABI version is read from the SDK when it's released.
-4. Try it in the app: `make install` copies every plugin into `../artwork-creator/plugins`,
-   or install it from the plugin manager with `make serve` (see
+4. Try it in the app: install it from the plugin manager with `make serve` (see
    [Trying plugins before a release](#trying-plugins-before-a-release)).
-5. `make check`, then commit and push or open a pull request. CI runs the same checks
-   and builds on Linux and Windows.
-6. Release it as below. The plugin shows up in `plugins.json` with its first release.
+5. Add tests: a Rust plugin's go in its crate (`#[cfg(test)]`), a Python plugin's in a
+   `test_<plugin>.py` next to its script (`tests/plugin_testing.py` has the helpers; the
+   release ships the script only).
+6. `make check`, then commit and push or open a pull request. CI runs the same checks
+   and tests, and builds on Linux and Windows.
+7. Release it as below. The plugin shows up in `plugins.json` with its first release.
 
 ## Releasing a version
 

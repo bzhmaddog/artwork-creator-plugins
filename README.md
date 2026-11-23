@@ -45,8 +45,42 @@ The whole process, adding a new plugin, and what to do when a release fails:
 To try plugins in the app before releasing them, `make serve` serves the working tree
 as a local repository: see [Trying plugins before a release](docs/publishing.md#trying-plugins-before-a-release).
 
-**CI** checks every push and pull request: the manifests and `plugins.json`, and that
-everything builds (`make check` runs the same checks locally).
+**CI** checks every push and pull request: the manifests and `plugins.json`, the tests,
+and that everything builds (`make check` runs the same checks locally).
+
+**Tests**: `make test` runs them all. The Rust plugins' tests are in their crates
+(`make test-rust`, i.e. `cargo test`). A Python plugin's are next to its script
+(`plugins/<plugin>/test_*.py`), run against a small stand-in for `artwork_plugin_sdk` when the
+real SDK isn't installed; the release ships the script only. `tests/` holds the tests of
+`scripts/`, run against a throwaway repository, the helpers the plugins' tests share, and
+`test_plugins.py`, which brings the plugins' tests into `make test-python` and checks that
+every Python plugin has some. They need only the standard library; pytest runs them too
+(`pytest tests plugins`).
+
+**Coverage**: `make coverage` writes reports to `coverage/`. The Python report is
+`coverage/python-html/index.html` (and `coverage/python.xml`); it needs coverage.py from
+`requirements-dev.txt` and fails below `fail_under` in `.coveragerc`. The Rust report is
+`coverage/html/index.html` (and `coverage/rust.lcov`); it needs `cargo install cargo-llvm-cov`.
+CI runs it too, with the totals in the run's summary and the reports as an artifact.
+
+**Lint**: `make lint` runs ruff (lint rules and format check, `ruff.toml`) and mypy
+(`mypy.ini`) on the scripts, the tests and the Python plugins; `make fmt` formats the
+Python code with ruff as well as the Rust code. CI runs it too.
+
+**Git hooks** (pre-commit, `.pre-commit-config.yaml`): `make install` installs them (or
+`make hooks` alone). Each commit then checks whitespace and line endings, JSON/TOML/YAML syntax, ruff
+(fixing what it can) and ruff format, mypy, `cargo fmt`, and the manifests and
+`plugins.json` (`plugin_index.py validate`); each push runs the Python and Rust tests. A
+hook that fixes files stops the commit: look at the changes, `git add` them and commit
+again. `make pre-commit` runs the commit hooks on every file (`STAGE=pre-push` for the push ones); `git commit --no-verify` skips them.
+
+**Setup**: with [rustup](https://rustup.rs) and Python 3.11+ installed, `make install` adds
+everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
+components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
+a `.venv` with `requirements-dev.txt` (which make then uses), and the git hooks. Running it
+again only updates what's missing. The one thing it doesn't install is MinGW, the linker of
+the Windows build, a system package: `sudo apt install gcc-mingw-w64-x86-64` (make install
+says so when it's missing).
 
 ### Repository settings
 

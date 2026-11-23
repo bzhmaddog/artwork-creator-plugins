@@ -2,8 +2,9 @@
 """The plugin index (plugins.json) and the releases it points to.
 
 Each plugin is a folder of plugins/ with a plugin.json manifest (id, name, description, author,
-homepage, license, kind, min_app, optionally compatible_from, and effects and/or generators: the display names of what it
-provides; for a Python plugin also version, script and sdk). A release is a tag <folder>-<version>; the Release workflow uses these commands:
+homepage, license, kind, min_app, optionally compatible_from, and effects and/or generators:
+the display names of what it provides; for a Python plugin also version, script and sdk).
+A release is a tag <folder>-<version>; the Release workflow uses these commands:
 
   resolve TAG          check the tag against the plugin and print what to build, as
                        key=value lines for $GITHUB_OUTPUT
@@ -70,8 +71,13 @@ def compatible_from_errors(d):
 def inherited_compatible_from(index, plugin_id, version):
     """The compatible_from a version gets in the index when its manifest has none: the one of
     the latest released version before it, or the version itself for a first release."""
-    earlier = [v for p in index["plugins"] if p["id"] == plugin_id for v in p["versions"]
-               if semver(v["version"]) < semver(version)]
+    earlier = [
+        v
+        for p in index["plugins"]
+        if p["id"] == plugin_id
+        for v in p["versions"]
+        if semver(v["version"]) < semver(version)
+    ]
     if not earlier:
         return version
     return max(earlier, key=lambda v: semver(v["version"])).get("compatible_from", version)
@@ -116,13 +122,13 @@ def code_provides(folder, m):
     """The effect and generator names a plugin's source declares, read with regexes (no build):
     for Python the name of each Effect and Generator subclass, for Rust the fn name of each
     type in export_plugin!'s effects and generators."""
-    found = {k: [] for k in PROVIDES}
+    found: dict[str, list[str]] = {k: [] for k in PROVIDES}
     if m["kind"] == "python":
         src = (folder / m["script"]).read_text(encoding="utf-8")
         for c in PY_CLASS_RE.finditer(src):
             name = PY_NAME_RE.search(c["body"])
             if not name:
-                raise Error(f"{folder.name}: a {c[1]} subclass in {m['script']} has no name = \"...\"")
+                raise Error(f'{folder.name}: a {c[1]} subclass in {m["script"]} has no name = "..."')
             found["effects" if c[1] == "Effect" else "generators"].append(name[1][1:-1])
         return found
     src = "\n".join(p.read_text(encoding="utf-8") for p in sorted((folder / "src").rglob("*.rs")))
@@ -131,8 +137,8 @@ def code_provides(folder, m):
         raise Error(f"{folder.name}: no export_plugin!(...) found in src/")
     for k, trait in (("effects", "Effect"), ("generators", "Generator")):
         listed = re.search(rf"\b{k}\s*:\s*\[(?P<types>[^\]]*)\]", export["body"])
-        for t in (listed["types"].split(",") if listed else []):
-            t = t.strip()
+        for listed_type in listed["types"].split(",") if listed else []:
+            t = listed_type.strip()
             if not t:
                 continue
             if not re.fullmatch(r"\w+", t):
@@ -196,9 +202,9 @@ def parse_tag(tag):
         raise Error(f"tag {tag!r} is not <plugin>-<X.Y.Z>")
     # The folder name may itself end in -<digits>; take the longest folder that exists.
     for folder in sorted(plugin_dirs(), key=lambda p: -len(p.name)):
-        if tag.startswith(folder.name + "-") and VERSION_RE.match(tag[len(folder.name) + 1:]):
+        if tag.startswith(folder.name + "-") and VERSION_RE.match(tag[len(folder.name) + 1 :]):
             m = load_plugin(folder)
-            version = tag[len(folder.name) + 1:]
+            version = tag[len(folder.name) + 1 :]
             if m["version"] != version:
                 where = "Cargo.toml" if m["kind"] == "library" else "plugin.json"
                 raise Error(f"tag {tag} but {folder.name}/{where} says version {m['version']}")
@@ -229,9 +235,15 @@ def cmd_resolve(args):
 
 def sdk_abi(locked=True):
     """ABI_VERSION of the plugin SDK the workspace builds against."""
-    meta = json.loads(subprocess.run(
-        ["cargo", "metadata", "--format-version", "1"] + (["--locked"] if locked else []),
-        cwd=ROOT, check=True, capture_output=True, text=True).stdout)
+    meta = json.loads(
+        subprocess.run(
+            ["cargo", "metadata", "--format-version", "1"] + (["--locked"] if locked else []),
+            cwd=ROOT,
+            check=True,
+            capture_output=True,
+            text=True,
+        ).stdout
+    )
     for p in meta["packages"]:
         if p["name"] == "artwork-plugin-sdk":
             abi = Path(p["manifest_path"]).parent / "src" / "abi.rs"
@@ -243,8 +255,10 @@ def sdk_abi(locked=True):
 
 def tag_message(tag):
     """The message of an annotated tag (the version's changes), or None."""
+
     def git(*a):
-        return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True).stdout.strip()
+        return subprocess.run(["git", *a], cwd=ROOT, capture_output=True, text=True, check=False).stdout.strip()
+
     if git("cat-file", "-t", f"refs/tags/{tag}") != "tag":
         return None
     text = git("tag", "-l", "--format=%(contents:subject)%0a%0a%(contents:body)", tag).strip()
@@ -256,14 +270,15 @@ def pep723_dependencies(script):
     found = PEP723_RE.search(script.read_text(encoding="utf-8"))
     if not found:
         return []
-    toml = "".join(line[2:] if line.startswith("# ") else line[1:]
-                   for line in found["content"].splitlines(keepends=True))
+    toml = "".join(
+        line[2:] if line.startswith("# ") else line[1:] for line in found["content"].splitlines(keepends=True)
+    )
     return tomllib.loads(toml).get("dependencies", [])
 
 
 def sha256(path):
     h = hashlib.sha256()
-    with open(path, "rb") as f:
+    with Path(path).open("rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             h.update(chunk)
     return h.hexdigest()
@@ -325,7 +340,7 @@ def cmd_verify(args):
                 break
             except OSError as e:
                 if attempt == 5:
-                    raise Error(f"{f['url']}: {e}")
+                    raise Error(f"{f['url']}: {e}") from e
                 time.sleep(5 * (attempt + 1))
         if len(data) != f["size"] or hashlib.sha256(data).hexdigest() != f["sha256"]:
             raise Error(f"{f['url']} does not match its size and SHA-256")
@@ -366,7 +381,9 @@ def cmd_validate(args):
             for k in PROVIDES:
                 declared, actual = set(m.get(k, [])), set(code[k])
                 if declared != actual:
-                    errors.append(f"{folder.name}: plugin.json {k} {sorted(declared)} don't match the code's {sorted(actual)}")
+                    errors.append(
+                        f"{folder.name}: plugin.json {k} {sorted(declared)} don't match the code's {sorted(actual)}"
+                    )
         except (Error, OSError, ValueError, KeyError) as e:
             errors.append(str(e))
     for folder in PLUGINS.iterdir():
@@ -400,7 +417,9 @@ def cmd_validate(args):
                 errors.append(f"{where}: ABI 1 has no generators")
             for platform, f in v.get("files", {}).items():
                 tag = f"{pid}-{v.get('version')}"
-                if not re.fullmatch(r"https://github\.com/[^/]+/[^/]+/releases/download/" + re.escape(tag) + r"/[^/]+", f.get("url", "")):
+                if not re.fullmatch(
+                    r"https://github\.com/[^/]+/[^/]+/releases/download/" + re.escape(tag) + r"/[^/]+", f.get("url", "")
+                ):
                     errors.append(f"{where} {platform}: url is not a release asset of {tag}")
                 if not re.fullmatch(r"[0-9a-f]{64}", f.get("sha256", "")):
                     errors.append(f"{where} {platform}: bad sha256")
@@ -423,11 +442,14 @@ def cmd_validate(args):
             if c is None or not VERSION_RE.match(str(c)):
                 c = floor
             elif floor and semver(c) < semver(floor):
-                errors.append(f"plugins.json: {pid} {v['version']}: compatible_from {c} is older than {floor}, set by an earlier version")
+                errors.append(
+                    f"plugins.json: {pid} {v['version']}: compatible_from {c} is older than {floor}, "
+                    "set by an earlier version"
+                )
                 c = floor
             floor = c
-    for e in errors:
-        print(f"::error::{e}")
+    for problem in errors:
+        print(f"::error::{problem}")
     if errors:
         raise Error(f"{len(errors)} problem(s)")
     print(f"ok: {len(plugin_dirs())} plugins, {len(ids)} in the index")

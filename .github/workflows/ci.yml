@@ -1,5 +1,6 @@
-# Checks every change: the manifests and plugins.json, the Python plugins compile, and
-# the Rust plugins build for Linux and Windows.
+# Checks every change: the manifests and plugins.json, the Python plugins compile, the
+# tests pass (the scripts' and plugins'), the Python code is linted and type-checked, and
+# the Rust plugins build for Linux and Windows; the Coverage job reports the tests' coverage.
 name: CI
 
 on:
@@ -20,7 +21,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: python3 scripts/plugin_index.py validate
-      - run: python3 -m py_compile scripts/*.py plugins/*/*.py
+      - run: python3 -m py_compile scripts/*.py plugins/*/*.py tests/*.py
+      - run: python3 -m unittest discover -s tests -t . -v
+
+  lint:
+    name: Lint Python
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install -r requirements-dev.txt
+      - run: make lint PYTHON=python3
 
   build:
     name: Build (${{ matrix.os }})
@@ -34,3 +47,42 @@ jobs:
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
       - run: cargo build --release --locked --workspace
+      - run: cargo test --locked --workspace
+
+  coverage:
+    name: Coverage
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
+        with:
+          components: llvm-tools-preview
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
+      - uses: taiki-e/install-action@fe3acb53a98b62c772db35de75ce0e4595e7ca8c # v2
+        with:
+          tool: cargo-llvm-cov@0.9.2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 -m pip install -r requirements-dev.txt
+      # Fails under fail_under in .coveragerc, after writing the reports.
+      - name: Python
+        run: make coverage-python PYTHON=python3
+      - name: Rust
+        run: make coverage-rust
+      - name: Summary
+        if: ${{ !cancelled() }}
+        run: |
+          {
+            echo "## Python"
+            python3 -m coverage report --format=markdown || true
+            echo "## Rust"
+            echo '```'
+            cargo llvm-cov report --summary-only || true
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+      - uses: actions/upload-artifact@v4
+        if: ${{ !cancelled() }}
+        with:
+          name: coverage
+          path: coverage/

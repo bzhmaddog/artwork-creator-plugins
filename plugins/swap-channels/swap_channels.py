@@ -15,9 +15,12 @@ class SwapChannels(Effect):
     name = "Swap channels"
     description = "Swap two color channels (Python example plugin)"
     params = [
-        choice_param("pair", "Swap", [("red-blue", "Red and blue"),
-                                      ("red-green", "Red and green"),
-                                      ("green-blue", "Green and blue")], "red-blue"),
+        choice_param(
+            "pair",
+            "Swap",
+            [("red-blue", "Red and blue"), ("red-green", "Red and green"), ("green-blue", "Green and blue")],
+            "red-blue",
+        ),
     ]
 
     def apply(self, image, values, scale):
