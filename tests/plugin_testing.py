@@ -5,9 +5,13 @@ names, enough for the plugins' code: an image is RGBA bytes, premultiplied, in
 image.pixels, and values are the parameters' values by key."""
 
 import importlib.util
+import re
 import sys
 import types
+import unittest
 from pathlib import Path
+
+from tests.repo import plugin_index
 
 
 def stand_in_sdk():
@@ -45,8 +49,24 @@ def load_plugin(path):
     spec = importlib.util.spec_from_file_location(f"plugin_{path.stem}", path)
     assert spec and spec.loader, path
     module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
+    try:
+        spec.loader.exec_module(module)
+    except ModuleNotFoundError as e:
+        # A dependency the script declares (its PEP 723 block) that isn't installed skips
+        # its tests; any other missing module is an error. CI installs them all.
+        if (e.name or "").split(".")[0] not in declared_modules(path):
+            raise
+        raise unittest.SkipTest(
+            f"{path.name} needs {e.name}: pip install $(python3 scripts/plugin_index.py dependencies)"
+        ) from e
     return module
+
+
+def declared_modules(path):
+    """Import names of a script's declared dependencies, taken as their package names (numpy),
+    so one whose module is named otherwise (pillow: PIL) is an error when missing, not skipped."""
+    names = (re.split(r"[^A-Za-z0-9._-]", d, maxsplit=1)[0] for d in plugin_index.pep723_dependencies(path))
+    return {n.lower().replace("-", "_") for n in names if n}
 
 
 class Image:

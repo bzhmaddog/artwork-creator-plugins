@@ -54,8 +54,23 @@ cargo-zigbuild. See the top of the `Makefile`.
    - **Rust**: a crate with `crate-type = ["cdylib"]` and
      `artwork-plugin-sdk = { workspace = true }`. Add `"plugins/<id>"` to `members` in
      the top `Cargo.toml` (CI fails if you forget).
-   - **Python**: one script. If it needs packages, list them in a PEP 723 block at the
-     top of the script; the release copies them into the index.
+   - **Python**: one script. If it needs packages from PyPI, list them in a PEP 723 block
+     at the top of the script; the release copies them into the index as the version's
+     `dependencies`, for the app to install. See `plugins/film-grain/film_grain.py`:
+
+     ```python
+     # /// script
+     # requires-python = ">=3.11"
+     # dependencies = [
+     #   "numpy>=1.26",
+     # ]
+     # ///
+     ```
+
+     Give a lower bound, not an exact pin, so the app can share one install between
+     plugins. `python3 scripts/plugin_index.py dependencies` lists every plugin's;
+     `make install` and CI install them, and the plugin's tests are skipped where they
+     aren't installed. Add a new one to the `[mypy-…]` sections of `mypy.ini` too.
 3. Add `plugins/<id>/plugin.json`. Copy one from another plugin of the same kind and
    change it:
 

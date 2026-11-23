@@ -21,7 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      # The oldest Python the scripts and plugins support.
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
       - run: python3 scripts/plugin_index.py validate
+      # The Python plugins' dependencies (their PEP 723 blocks), so their tests run, not skip.
+      - run: python3 -m pip install $(python3 scripts/plugin_index.py dependencies)
       - run: python3 -m py_compile scripts/*.py plugins/*/*.py tests/*.py
       - run: python3 -m unittest discover -s tests -t . -v
 
@@ -34,6 +40,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 -m pip install --require-hashes --only-binary ':all:' -r requirements-dev.txt
+      # mypy checks the plugins against their dependencies' types.
+      - run: python3 -m pip install $(python3 scripts/plugin_index.py dependencies)
       - run: make lint PYTHON=python3
 
   build:
@@ -68,6 +76,8 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 -m pip install --require-hashes --only-binary ':all:' -r requirements-dev.txt
+      # The Python plugins' dependencies (their PEP 723 blocks), so their tests run, not skip.
+      - run: python3 -m pip install $(python3 scripts/plugin_index.py dependencies)
       # Fails under fail_under in .coveragerc, after writing the reports.
       - name: Python
         run: make coverage-python PYTHON=python3

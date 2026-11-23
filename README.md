@@ -25,7 +25,7 @@ A Rust plugin is also listed in the `members` of the workspace in the top `Cargo
 plugin SDK from the Artwork Creator repository at a release tag. Its ABI version is read
 from that SDK at release time. A Python plugin's dependencies stay in its own PEP 723
 block; the release copies them into the index as `dependencies`, so there's nothing to
-keep in step.
+keep in step. `plugins/film-grain` is an example (numpy).
 
 ## Releasing a plugin
 
@@ -54,7 +54,9 @@ and that everything builds (`make check` runs the same checks locally).
 real SDK isn't installed; the release ships the script only. `tests/` holds the tests of
 `scripts/`, run against a throwaway repository, the helpers the plugins' tests share, and
 `test_plugins.py`, which brings the plugins' tests into `make test-python` and checks that
-every Python plugin has some. They need only the standard library; pytest runs them too
+every Python plugin has some. They need only the standard library, plus each Python
+plugin's own dependencies for its tests, which are skipped when those aren't installed
+(`make install` puts them in `.venv`; CI installs them). pytest runs them too
 (`pytest tests plugins`).
 
 **Coverage**: `make coverage` writes reports to `coverage/`. The Python report is
@@ -77,7 +79,8 @@ again. `make pre-commit` runs the commit hooks on every file (`STAGE=pre-push` f
 **Setup**: with [rustup](https://rustup.rs) and Python 3.11+ installed, `make install` adds
 everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
 components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
-a `.venv` with `requirements-dev.txt` (which make then uses), and the git hooks.
+a `.venv` with `requirements-dev.txt` and the Python plugins' dependencies (which make then
+uses), and the git hooks.
 `requirements-dev.txt` is generated and hash-locked: edit the tool versions in
 `requirements-dev.in`, then run `make lock` to regenerate it. Running it
 again only updates what's missing. The one thing it doesn't install is MinGW, the linker of

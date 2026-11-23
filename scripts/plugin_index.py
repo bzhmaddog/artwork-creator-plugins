@@ -13,6 +13,7 @@ A release is a tag <folder>-<version>; the Release workflow uses these commands:
   merge ENTRY          add an entry's version to plugins.json
   validate             check plugins.json and every manifest (CI)
   version PLUGIN       print a plugin's version (make tag)
+  dependencies         print the Python plugins' dependencies, one per line (pip install)
 
 serve.py, next to this file, uses this module for make serve.
 
@@ -185,6 +186,12 @@ def load_plugin(folder):
         if not script or not (folder / script).is_file():
             raise Error(f"{folder.name}: script {script!r} not found")
         m["files"] = {"any": script}
+        try:
+            deps = pep723_dependencies(folder / script)
+        except tomllib.TOMLDecodeError as e:
+            raise Error(f"{folder.name}: the PEP 723 block of {script} isn't TOML: {e}") from e
+        if not isinstance(deps, list) or not all(isinstance(d, str) and d.strip() for d in deps):
+            raise Error(f"{folder.name}: dependencies in {script} must be a list of requirement strings")
     problems = provides_errors(m)
     if problems:
         raise Error(f"{folder.name}: {'; '.join(problems)}")
@@ -368,6 +375,17 @@ def cmd_merge(args):
     print(f"added {entry['id']} {new['version']} to plugins.json")
 
 
+def cmd_dependencies(args):
+    """Every dependency of the Python plugins, once, as pip install takes them."""
+    seen = []
+    for folder in plugin_dirs():
+        m = load_plugin(folder)
+        if m["kind"] == "python":
+            seen += [d for d in pep723_dependencies(folder / m["script"]) if d not in seen]
+    for d in seen:
+        print(d)
+
+
 def cmd_version(args):
     print(load_plugin(PLUGINS / args.plugin)["version"])
 
@@ -413,6 +431,9 @@ def cmd_validate(args):
             if not v.get("compatible_from"):
                 errors.append(f"{where} has no compatible_from")
             errors += [f"{where}: {e}" for e in provides_errors(v) + compatible_from_errors(v)]
+            deps = v.get("dependencies", [])
+            if not isinstance(deps, list) or not all(isinstance(d, str) and d.strip() for d in deps):
+                errors.append(f"{where}: dependencies must be a list of requirement strings")
             if v.get("abi") == 1 and "generators" in v:
                 errors.append(f"{where}: ABI 1 has no generators")
             for platform, f in v.get("files", {}).items():
@@ -479,6 +500,8 @@ def main():
     s.set_defaults(fn=cmd_version)
     s = sub.add_parser("validate")
     s.set_defaults(fn=cmd_validate)
+    s = sub.add_parser("dependencies")
+    s.set_defaults(fn=cmd_dependencies)
     args = ap.parse_args()
     try:
         args.fn(args)

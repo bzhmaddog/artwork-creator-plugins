@@ -11,7 +11,7 @@ import unittest
 from typing import Any, ClassVar
 from unittest import mock
 
-from tests.repo import ROOT, RS_SOURCE, RepoTestCase, release_version
+from tests.repo import PY_SCRIPT, ROOT, RS_SOURCE, RepoTestCase, release_version
 from tests.repo import plugin_index as pi
 
 INDEX_SCRIPT = ROOT / "scripts" / "plugin_index.py"
@@ -266,6 +266,24 @@ class Pep723Test(RepoTestCase):
         )
 
 
+class DependenciesTest(RepoTestCase):
+    def block(self, deps):
+        return f"# /// script\n# dependencies = {deps}\n# ///\n" + PY_SCRIPT
+
+    def test_each_once_python_plugins_only(self):
+        self.add_python("one", script=self.block('["numpy>=1.26", "pillow"]'))
+        self.add_python("two", script=self.block('["numpy>=1.26"]'))
+        self.add_python("three")
+        self.add_rust()
+        self.assertEqual(quiet(pi.cmd_dependencies, args()), "numpy>=1.26\npillow\n")
+
+    def test_bad_block(self):
+        for deps, text in (('["numpy"', "isn't TOML"), ('"numpy"', "list of requirement strings"), ("[1]", "list")):
+            folder = self.add_python(script=self.block(deps))
+            with self.subTest(deps), self.assertRaisesRegex(pi.Error, text):
+                pi.load_plugin(folder)
+
+
 class SdkAbiTest(RepoTestCase):
     def metadata(self, abi_source):
         sdk = self.root / "sdk"
@@ -498,6 +516,12 @@ class ValidateTest(RepoTestCase):
         self.assertEqual(self.problems(), [])
         self.write_index(self.index)
         self.assertIn("ok: 2 plugins, 1 in the index", quiet(pi.cmd_validate, args()))
+
+    def test_dependencies_format(self):
+        self.index[0]["versions"][0]["dependencies"] = "numpy"
+        self.assert_problem("dependencies must be a list of requirement strings")
+        self.index[0]["versions"][0]["dependencies"] = ["numpy>=1.26"]
+        self.assertEqual(self.problems(), [])
 
     def test_manifest_and_code_disagree(self):
         self.add_python(effects=["Invert", "Sharpen"])
