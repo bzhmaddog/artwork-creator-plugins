@@ -1,6 +1,7 @@
 # Checks every change: the manifests and plugins.json, the Python plugins compile, the
 # tests pass (the scripts' and plugins'), the Python code is linted and type-checked, and
-# the Rust plugins build for Linux and Windows; the Coverage job reports the tests' coverage.
+# the Rust plugins build for Linux and Windows; the Coverage job reports the tests' coverage
+# and runs the SonarQube Cloud analysis (sonar-project.properties) with it.
 name: CI
 
 on:
@@ -54,6 +55,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # the history, for SonarQube Cloud's new-code detection and blame
       - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           components: llvm-tools-preview
@@ -86,3 +89,9 @@ jobs:
         with:
           name: coverage
           path: coverage/
+      # Settings in sonar-project.properties; sends the coverage reports with the analysis.
+      - name: SonarQube Cloud
+        if: ${{ !cancelled() }}
+        uses: SonarSource/sonarqube-scan-action@59202af334b4ba7b5db01b701b8e79f8b3bef0f4 # v8.5.0
+        env:
+          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
