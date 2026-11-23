@@ -25,6 +25,7 @@
 #   make lint         lint and type-check the Python code (ruff, ruff format --check, mypy;
 #                     requirements-dev.txt)
 #   make fmt          format the Rust and the Python code
+#   make lock         regenerate requirements-dev.txt (hash-locked) from requirements-dev.in
 #   make hooks        install the git hooks of .pre-commit-config.yaml (pre-commit, pre-push)
 #   make pre-commit   run the commit hooks on every file, not only the staged ones
 #                     (STAGE=pre-push: the push hooks, the tests)
@@ -63,7 +64,7 @@ PY_PLUGIN_TESTS := $(wildcard plugins/*/test_*.py)
 PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
-.PHONY: all install install-rust install-zig install-python linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust lint hooks pre-commit fmt clippy tag clean
+.PHONY: all install install-rust install-zig install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust lint hooks pre-commit fmt clippy tag clean
 
 all: linux windows
 
@@ -92,7 +93,15 @@ install-python:
 	@$(BOOTSTRAP_PYTHON) -c 'import sys; sys.exit(sys.version_info < (3, 11))' || \
 	  { echo "Python 3.11+ is needed ($(BOOTSTRAP_PYTHON) is older)"; exit 1; }
 	test -x .venv/bin/python || $(BOOTSTRAP_PYTHON) -m venv .venv
-	.venv/bin/python -m pip install -q -r requirements-dev.txt
+	.venv/bin/python -m pip install -q --require-hashes --only-binary ':all:' -r requirements-dev.txt
+
+# requirements-dev.txt from requirements-dev.in: every dependency pinned, with its hashes
+# (pip-tools, in its own venv in .tools/).
+lock:
+	test -x .tools/pip-tools/bin/pip-compile || \
+	  { $(BOOTSTRAP_PYTHON) -m venv .tools/pip-tools && .tools/pip-tools/bin/pip install -q pip-tools; }
+	CUSTOM_COMPILE_COMMAND="make lock" .tools/pip-tools/bin/pip-compile -q --generate-hashes \
+	  --allow-unsafe --strip-extras -o requirements-dev.txt requirements-dev.in
 
 linux:
 	$(CARGO) build --release --locked --workspace --target $(LINUX)

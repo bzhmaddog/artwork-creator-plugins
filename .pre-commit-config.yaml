@@ -3,7 +3,7 @@
 #   .venv/bin/pre-commit run --all-files
 # On commit: file hygiene, ruff (lint, with fixes, and format), mypy, cargo fmt and the
 # manifest/index validation. On push: the Python and Rust tests. Keep the ruff and mypy
-# revs in step with requirements-dev.txt.
+# revs in step with requirements-dev.in.
 default_install_hook_types: [pre-commit, pre-push]
 default_stages: [pre-commit]
 

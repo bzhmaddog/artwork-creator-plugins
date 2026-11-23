@@ -77,7 +77,9 @@ again. `make pre-commit` runs the commit hooks on every file (`STAGE=pre-push` f
 **Setup**: with [rustup](https://rustup.rs) and Python 3.11+ installed, `make install` adds
 everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
 components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
-a `.venv` with `requirements-dev.txt` (which make then uses), and the git hooks. Running it
+a `.venv` with `requirements-dev.txt` (which make then uses), and the git hooks.
+`requirements-dev.txt` is generated and hash-locked: edit the tool versions in
+`requirements-dev.in`, then run `make lock` to regenerate it. Running it
 again only updates what's missing. The one thing it doesn't install is MinGW, the linker of
 the Windows build, a system package: `sudo apt install gcc-mingw-w64-x86-64` (make install
 says so when it's missing).

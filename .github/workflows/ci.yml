@@ -32,7 +32,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python3 -m pip install -r requirements-dev.txt
+      - run: python3 -m pip install --require-hashes --only-binary ':all:' -r requirements-dev.txt
       - run: make lint PYTHON=python3
 
   build:
@@ -64,7 +64,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
-      - run: python3 -m pip install -r requirements-dev.txt
+      - run: python3 -m pip install --require-hashes --only-binary ':all:' -r requirements-dev.txt
       # Fails under fail_under in .coveragerc, after writing the reports.
       - name: Python
         run: make coverage-python PYTHON=python3
