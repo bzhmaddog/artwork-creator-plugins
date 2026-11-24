@@ -1,0 +1,16 @@
+{
+  "id": "film-grain",
+  "name": "Film grain",
+  "description": "Film grain effect: random noise, monochrome or color",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/film-grain",
+  "license": "MIT",
+  "kind": "python",
+  "version": "1.0.0",
+  "script": "film_grain.py",
+  "min_app": "0.16.0",
+  "sdk": "0.3.0",
+  "effects": [
+    "Film grain"
+  ]
+}

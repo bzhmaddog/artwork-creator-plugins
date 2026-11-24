@@ -169,5 +169,6 @@ repository, every SHA-256 64 hex digits, every size a positive integer.
 | `merge ENTRY` | `index` job, by hand | add an entry's version to `plugins.json` |
 | `validate` | `index` job, CI, `make validate` | check every manifest and `plugins.json` |
 | `version PLUGIN` | `make tag` | print a plugin's version |
+| `dependencies` | CI, `make install-python` | print the Python plugins' dependencies, for `pip install` |
 
 Errors are printed as `::error::<message>` so they show up as annotations on the run.

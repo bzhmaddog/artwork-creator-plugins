@@ -23,9 +23,21 @@ def load_tests(loader, tests, pattern):
         spec = importlib.util.spec_from_file_location(name, path)
         assert spec and spec.loader, path
         module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
+        try:
+            spec.loader.exec_module(module)
+        except unittest.SkipTest as e:
+            # A plugin whose dependency isn't installed (tests/plugin_testing.py).
+            tests.addTest(skipped(name, str(e)))
+            continue
         tests.addTests(loader.loadTestsFromModule(module))
     return tests
+
+
+def skipped(name, reason):
+    def test():
+        raise unittest.SkipTest(reason)
+
+    return unittest.FunctionTestCase(test, description=name)
 
 
 def python_plugins():
@@ -44,6 +56,9 @@ class PluginsTest(unittest.TestCase):
     def test_ids_are_unique(self):
         ids = []
         for folder, m in python_plugins():
-            plugin = load_plugin(folder / m["script"]).plugin
+            try:
+                plugin = load_plugin(folder / m["script"]).plugin
+            except unittest.SkipTest:
+                continue
             ids += [x.id for x in plugin.effects + plugin.generators]
         self.assertEqual(len(ids), len(set(ids)), ids)

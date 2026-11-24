@@ -7,7 +7,8 @@
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
 #                     components, cargo-zigbuild and cargo-llvm-cov, zig in .tools/, a .venv
-#                     with requirements-dev.txt, and the git hooks
+#                     with requirements-dev.txt and the Python plugins' dependencies, and
+#                     the git hooks
 #   make              build every Rust plugin for Linux and Windows (all)
 #   make linux        build for Linux, against this machine's glibc
 #   make linux-portable  build for Linux against glibc GLIBC, like the released files
@@ -94,6 +95,8 @@ install-python:
 	  { echo "Python 3.11+ is needed ($(BOOTSTRAP_PYTHON) is older)"; exit 1; }
 	test -x .venv/bin/python || $(BOOTSTRAP_PYTHON) -m venv .venv
 	.venv/bin/python -m pip install -q --require-hashes --only-binary ':all:' -r requirements-dev.txt
+	deps="$$(.venv/bin/python scripts/plugin_index.py dependencies)" && \
+	  if [ -n "$$deps" ]; then .venv/bin/python -m pip install -q $$deps; fi
 
 # requirements-dev.txt from requirements-dev.in: every dependency pinned, with its hashes
 # (pip-tools, in its own venv in .tools/).
@@ -141,7 +144,8 @@ test-rust:
 	$(CARGO) test --locked --workspace
 
 # The scripts' tests (tests/) and the Python plugins' (plugins/*/test_*.py, which
-# tests/test_plugins.py collects), standard library only.
+# tests/test_plugins.py collects). A plugin's tests are skipped when its dependencies
+# aren't installed (make install-python installs them in .venv).
 test-python:
 	$(PYTHON) -m unittest discover -s tests -t .
 
