@@ -10,8 +10,32 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/film-grain",
       "license": "MIT",
       "kind": "python",
-      "latest": "1.0.0",
+      "latest": "1.0.1",
       "versions": [
+        {
+          "version": "1.0.1",
+          "released": "2026-11-24",
+          "min_app": "0.17.0",
+          "engines": {
+            "app": ">=0.17.0",
+            "sdk": ">=0.4.0"
+          },
+          "compatible_from": "1.0.0",
+          "effects": [
+            "Film grain"
+          ],
+          "changes": "Seed picked by the app, with a Regenerate button; size role on Grain size",
+          "dependencies": [
+            "numpy>=1.26"
+          ],
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/film-grain-1.0.1/film_grain.py",
+              "sha256": "b17528acae3b2cac6d7b1202824343cf8caa9853d1dcc5df771cfc128a0a7948",
+              "size": 2273
+            }
+          }
+        },
         {
           "version": "1.0.0",
           "released": "2026-11-24",
