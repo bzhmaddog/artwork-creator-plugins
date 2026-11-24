@@ -43,8 +43,33 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
-      "latest": "1.0.0",
+      "latest": "1.0.1",
       "versions": [
+        {
+          "version": "1.0.1",
+          "released": "2026-11-24",
+          "abi": 2,
+          "effects": [
+            "Halftone"
+          ],
+          "generators": [
+            "Dot grid"
+          ],
+          "changes": "Size and angle roles; built with plugin SDK 0.4.0",
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.0.1/libhalftone.so",
+              "sha256": "e674652f68ec2488e8be2af340e7c624bbae50544df35c76adb101a50c49907f",
+              "size": 527696
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.0.1/halftone.dll",
+              "sha256": "eb4aeabdccf736092af8c9d56a200996b3491d54a9f5d7d5c0f5b6f30aaedfa4",
+              "size": 282624
+            }
+          },
+          "compatible_from": "0.1.0"
+        },
         {
           "version": "1.0.0",
           "released": "2026-11-22",
