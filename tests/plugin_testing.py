@@ -36,8 +36,8 @@ def stand_in_sdk():
         """[r, g, b, a] from "#rrggbbaa"."""
         return list(bytes.fromhex(value.lstrip("#")))
 
-    def seed_param(id, label):
-        return param("int")(id, label, 0, 2**31 - 1, 0, role="seed")
+    def seed_param(id, label, **kw):
+        return param("int")(id, label, 0, 2**31 - 1, 0, role="seed", **kw)
 
     vars(sdk).update(Effect=Effect, Generator=Generator, Plugin=Plugin, color=color, seed_param=seed_param)
     for kind in ("int", "float", "color", "choice", "bool"):

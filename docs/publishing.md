@@ -88,6 +88,12 @@ cargo-zigbuild. See the top of the `Makefile`.
    as `role=` is new in the SDK the app provides. Without a role, the app guesses it
    from an int's id `seed` and a float's unit `°` or `px`.
 
+   A parameter's `group` puts it in a folding section of that name, with the other
+   parameters of the same group, where the first of them is: `group=` of every
+   `*_param` in Python, `Param::group` in Rust. Groups need SDK 0.5.0. A Rust plugin
+   using them still runs on older apps, which show the parameters ungrouped; a Python
+   one doesn't, as `group=` is new in the SDK the app provides.
+
 3. Add `plugins/<id>/plugin.json`. Copy one from another plugin of the same kind and
    change it:
 
