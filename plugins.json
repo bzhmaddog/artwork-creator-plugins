@@ -3,6 +3,39 @@
   "name": "Artwork Creator community plugins",
   "plugins": [
     {
+      "id": "film-grain",
+      "name": "Film grain",
+      "description": "Film grain effect: random noise, monochrome or color",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/film-grain",
+      "license": "MIT",
+      "kind": "python",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-24",
+          "min_app": "0.16.0",
+          "compatible_from": "1.0.0",
+          "sdk": "0.3.0",
+          "effects": [
+            "Film grain"
+          ],
+          "changes": "Added film grain example plugin with numpy as external dependency",
+          "dependencies": [
+            "numpy>=1.26"
+          ],
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/film-grain-1.0.0/film_grain.py",
+              "sha256": "d82c89c8c69ddda5c39f2d322f9d57fa4b550aa1a144ed543adb611b25914015",
+              "size": 2173
+            }
+          }
+        }
+      ]
+    },
+    {
       "id": "halftone",
       "name": "Halftone",
       "description": "Halftone dots effect and dot grid generator",
