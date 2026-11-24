@@ -4,8 +4,8 @@ version = 4
 
 [[package]]
 name = "artwork-plugin-sdk"
-version = "0.3.0"
-source = "git+https://github.com/bzhmaddog/artwork-creator?tag=v0.16.0#446746bef855cc2c66496dec21ccef5a9dfc13cc"
+version = "0.4.0"
+source = "git+https://github.com/bzhmaddog/artwork-creator?tag=v0.17.0#b08ef32f84a82a09d1ed5276678692e6e2ce6be4"
 dependencies = [
  "serde",
  "serde_json",
@@ -13,7 +13,7 @@ dependencies = [
 
 [[package]]
 name = "halftone"
-version = "1.0.0"
+version = "1.0.1"
 dependencies = [
  "artwork-plugin-sdk",
 ]
