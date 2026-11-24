@@ -29,13 +29,17 @@ def stand_in_sdk():
             self.effects, self.generators = list(effects), list(generators)
 
     def param(kind):
-        return lambda key, label, *a, **kw: {"kind": kind, "key": key, "label": label, "args": a, **kw}
+        # The keys the app reads, as the SDK gives them; the other arguments as passed.
+        return lambda id, label, *a, **kw: {"id": id, "label": label, "type": kind, "args": a, **kw}
 
     def color(value):
         """[r, g, b, a] from "#rrggbbaa"."""
         return list(bytes.fromhex(value.lstrip("#")))
 
-    vars(sdk).update(Effect=Effect, Generator=Generator, Plugin=Plugin, color=color)
+    def seed_param(id, label):
+        return param("int")(id, label, 0, 2**31 - 1, 0, role="seed")
+
+    vars(sdk).update(Effect=Effect, Generator=Generator, Plugin=Plugin, color=color, seed_param=seed_param)
     for kind in ("int", "float", "color", "choice", "bool"):
         setattr(sdk, f"{kind}_param", param(kind))
     return sdk

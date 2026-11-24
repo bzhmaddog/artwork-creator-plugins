@@ -60,11 +60,14 @@ def manifest(id, kind="python", **extra):
         "homepage": f"https://example.com/{id}",
         "license": "MIT",
         "kind": kind,
-        "min_app": "0.16.0",
     }
     if kind == "python":
         m.update(
-            version="1.0.0", script=f"{id.replace('-', '_')}.py", sdk="0.3.0", effects=["Invert"], generators=["Noise"]
+            version="1.0.0",
+            script=f"{id.replace('-', '_')}.py",
+            engines={"sdk": ">=0.3.0"},
+            effects=["Invert"],
+            generators=["Noise"],
         )
     else:
         m.update(effects=["Blur"], generators=["Grid"])

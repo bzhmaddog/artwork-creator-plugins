@@ -4,7 +4,7 @@
 //!
 //! Build it with `cargo build --release -p halftone`; released by the Release workflow.
 
-use artwork_plugin_sdk::{Effect, Generator, Image, Param, Values, export_plugin};
+use artwork_plugin_sdk::{Effect, Generator, Image, Param, Role, Values, export_plugin};
 
 struct Halftone;
 
@@ -32,13 +32,16 @@ impl Effect for Halftone {
 
     fn params(&self) -> Vec<Param> {
         vec![
-            Param::float("size", "Dot spacing", 2.0, 100.0, 8.0).unit(" px"),
+            Param::float("size", "Dot spacing", 2.0, 100.0, 8.0)
+                .unit(" px")
+                .role(Role::Size),
             Param::float("dot_size", "Dot size", 0.0, 100.0, 100.0)
                 .unit(" %")
                 .decimals(0),
             Param::float("angle", "Angle", 0.0, 90.0, 45.0)
                 .unit("°")
-                .decimals(0),
+                .decimals(0)
+                .role(Role::Angle),
             Param::float("offset_x", "X offset", -100.0, 100.0, 0.0)
                 .unit(" %")
                 .decimals(0),
@@ -206,7 +209,8 @@ impl Generator for DotGrid {
                 .decimals(0),
             Param::float("angle", "Angle", 0.0, 90.0, 45.0)
                 .unit("°")
-                .decimals(0),
+                .decimals(0)
+                .role(Role::Angle),
             Param::float("offset_x", "X offset", -100.0, 100.0, 0.0)
                 .unit(" %")
                 .decimals(0),

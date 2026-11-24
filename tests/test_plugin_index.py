@@ -75,6 +75,11 @@ class CompatibleFromTest(unittest.TestCase):
         self.assertEqual(list(v), ["version", "min_app", "compatible_from", "files"])
         self.assertEqual(v["compatible_from"], "1.0.0")
 
+    def test_filled_in_after_engines(self):
+        v = {"version": "1.0.0", "min_app": "0.17.0", "engines": {"sdk": ">=0.4.0"}, "files": {}}
+        v = pi.with_compatible_from(v, self.index(), "p")
+        self.assertEqual(list(v), ["version", "min_app", "engines", "compatible_from", "files"])
+
     def test_filled_in_at_the_end_without_min_app(self):
         v = pi.with_compatible_from({"version": "1.0.0"}, self.index(), "p")
         self.assertEqual(v, {"version": "1.0.0", "compatible_from": "1.0.0"})
@@ -98,6 +103,20 @@ class ProvidesTest(unittest.TestCase):
 
     def test_duplicate(self):
         self.assertIn("twice", pi.provides_errors({"effects": ["A", "A"]})[0])
+
+
+class RequirementTest(unittest.TestCase):
+    def test_clauses(self):
+        self.assertEqual(pi.requirement(">=0.4.0, <2.0.0"), [(">=", "0.4.0"), ("<", "2.0.0")])
+        self.assertEqual(pi.requirement("=1.2.3"), [("=", "1.2.3")])
+        for bad in ("", "0.4.0", "^0.4.0", "~0.4.0", ">=0.4", ">=0.4.0 <2.0.0", None):
+            with self.assertRaises(pi.Error, msg=bad):
+                pi.requirement(bad)
+
+    def test_lower_bound(self):
+        self.assertEqual(pi.lower_bound(">=0.4.0, <2.0.0"), "0.4.0")
+        self.assertEqual(pi.lower_bound("=1.0.0"), "1.0.0")
+        self.assertIsNone(pi.lower_bound("<2.0.0"))
 
 
 class LoadPluginTest(RepoTestCase):
@@ -152,6 +171,33 @@ class LoadPluginTest(RepoTestCase):
 
     def test_compatible_from(self):
         self.assert_error(self.add_python(compatible_from="2.0.0"), "later than the version")
+
+    def test_engines_are_optional_for_a_library(self):
+        self.assertNotIn("engines", pi.load_plugin(self.add_rust()))
+        m = pi.load_plugin(self.add_rust(engines={"app": ">=0.16.0, <1.0.0"}))
+        self.assertEqual(m["engines"], {"app": ">=0.16.0, <1.0.0"})
+
+    def test_old_fields_point_to_engines(self):
+        for old in ("min_app", "min_sdk", "sdk"):
+            self.assert_error(self.add_python(**{old: "0.3.0"}), f"{old} is now in engines")
+
+    def test_bad_engines(self):
+        self.assert_error(self.add_python(engines={"sdk": "0.4"}), "not a version requirement")
+        self.assert_error(self.add_python(engines={"sdk": "^0.4.0"}), "not a version requirement")
+        self.assert_error(self.add_python(engines={"sdk": ">=0.3.0", "python": ">=3.11.0"}), "engines.python")
+        self.assert_error(self.add_rust(engines={"sdk": ">=0.4.0"}), "through its ABI version")
+        self.assert_error(self.add_python(engines={}), "must be an object")
+
+    def test_python_needs_a_lower_sdk_bound(self):
+        self.assert_error(self.add_python(engines={"app": ">=0.17.0"}), "needs engines.sdk")
+        self.assert_error(self.add_python(engines={"sdk": "<1.0.0"}), "needs a >= bound")
+
+    def test_a_newer_sdk_needs_an_app_bound(self):
+        # Apps before engines read only the min_app written from engines.app.
+        self.assert_error(self.add_python(engines={"sdk": ">=0.4.0"}), "needs an engines.app")
+        self.assert_error(self.add_python(engines={"sdk": ">=0.4.0", "app": "<0.20.0"}), "needs an engines.app")
+        m = pi.load_plugin(self.add_python(engines={"sdk": ">=0.4.0", "app": ">=0.17.0"}))
+        self.assertEqual(m["engines"]["sdk"], ">=0.4.0")
 
 
 class CodeProvidesTest(RepoTestCase):
@@ -285,30 +331,39 @@ class DependenciesTest(RepoTestCase):
 
 
 class SdkAbiTest(RepoTestCase):
-    def metadata(self, abi_source):
-        sdk = self.root / "sdk"
-        self.write("sdk/src/abi.rs", abi_source)
-        meta = {
-            "packages": [
-                {"name": "serde", "manifest_path": "/x/Cargo.toml"},
-                {"name": "artwork-plugin-sdk", "manifest_path": str(sdk / "Cargo.toml")},
+    def metadata(self, abi_sources):
+        """cargo metadata for plugins each depending on an SDK of its own: {package: abi.rs}."""
+        packages = [{"id": "serde 1", "name": "serde", "manifest_path": "/x/Cargo.toml"}]
+        nodes = []
+        for i, (package, source) in enumerate(abi_sources.items()):
+            sdk = self.root / f"sdk{i}"
+            self.write(f"sdk{i}/src/abi.rs", source)
+            sdk_id = f"git+https://example.com/app?tag=v{i}#artwork-plugin-sdk@0.{i}.0"
+            packages += [
+                {"id": sdk_id, "name": "artwork-plugin-sdk", "manifest_path": str(sdk / "Cargo.toml")},
+                {"id": f"path+file:///{package}#{package}@1.0.0", "name": package, "manifest_path": "/p/Cargo.toml"},
             ]
-        }
+            deps = [{"name": "artwork_plugin_sdk", "pkg": sdk_id}, {"name": "serde", "pkg": "serde 1"}]
+            nodes.append({"id": f"path+file:///{package}#{package}@1.0.0", "deps": deps})
+        meta = {"packages": packages, "resolve": {"nodes": nodes}}
         return mock.patch.object(
             pi.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, json.dumps(meta), "")
         )
 
-    def test_reads_abi_version(self):
-        with self.metadata("/// The ABI.\npub const ABI_VERSION: u32 = 4;\n") as run:
-            self.assertEqual(pi.sdk_abi(), 4)
+    def test_reads_each_plugins_own_sdk(self):
+        sources = {"old": "pub const ABI_VERSION: u32 = 2;\n", "new": "/// The ABI.\npub const ABI_VERSION: u32 = 4;\n"}
+        with self.metadata(sources) as run:
+            self.assertEqual((pi.sdk_abi("old"), pi.sdk_abi("new")), (2, 4))
         self.assertIn("--locked", run.call_args.args[0])
-        with self.metadata("pub const ABI_VERSION: u32 = 4;\n") as run:
-            pi.sdk_abi(locked=False)
+        with self.metadata(sources) as run:
+            pi.sdk_abi("new", locked=False)
         self.assertNotIn("--locked", run.call_args.args[0])
 
     def test_not_found(self):
-        with self.metadata("pub const OTHER: u32 = 4;\n"), self.assertRaisesRegex(pi.Error, "ABI_VERSION"):
-            pi.sdk_abi()
+        with self.metadata({"fx": "pub const OTHER: u32 = 4;\n"}), self.assertRaisesRegex(pi.Error, "ABI_VERSION"):
+            pi.sdk_abi("fx")
+        with self.metadata({"fx": "pub const ABI_VERSION: u32 = 4;\n"}), self.assertRaisesRegex(pi.Error, "depend"):
+            pi.sdk_abi("other")
 
 
 class TagMessageTest(RepoTestCase):
@@ -346,9 +401,16 @@ class PluginEntryTest(RepoTestCase):
         self.assertEqual(v["compatible_from"], "0.9.0")
         self.assertEqual(v["dependencies"], ["numpy"])
         self.assertEqual(v["changes"], "Changes")
-        self.assertEqual(v["sdk"], "0.3.0")
+        self.assertEqual(v["engines"], {"sdk": ">=0.3.0"})
+        self.assertNotIn("min_app", v)
         self.assertNotIn("abi", v)
         self.assertEqual(list(v)[-1], "files")
+
+    def test_min_app_is_written_for_older_apps(self):
+        folder = self.add_python(engines={"app": ">=0.17.0, <1.0.0", "sdk": ">=0.4.0"})
+        v = pi.plugin_entry(folder, pi.load_plugin(folder), self.files, index={"plugins": []})["versions"][0]
+        self.assertEqual((v["min_app"], v["engines"]["app"]), ("0.17.0", ">=0.17.0, <1.0.0"))
+        self.assertEqual(list(v)[:6], ["version", "released", "min_app", "engines", "compatible_from", "effects"])
 
     def test_library_gets_the_abi(self):
         folder = self.add_rust()

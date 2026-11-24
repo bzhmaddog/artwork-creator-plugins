@@ -4,7 +4,7 @@
 [workspace]
 resolver = "3"
 members = ["plugins/halftone"]
-# The plugin SDK, from the Artwork Creator repository at a release tag, so a build
-# always gets the same SDK. Raise the tag on purpose, then `cargo update -p artwork-plugin-sdk`.
-[workspace.dependencies]
-artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator", tag = "v0.16.0" }
+# Each plugin takes the plugin SDK in its own Cargo.toml, from the Artwork Creator
+# repository at a release tag, so it moves to a newer SDK (one that breaks its code, say)
+# when it's ready, apart from the others. See "Moving to a newer app or SDK" in
+# docs/publishing.md.

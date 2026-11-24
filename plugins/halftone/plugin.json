@@ -6,7 +6,6 @@
   "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
   "license": "MIT",
   "kind": "library",
-  "min_app": "0.16.0",
   "effects": [
     "Halftone"
   ],

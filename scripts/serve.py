@@ -58,7 +58,6 @@ class LocalRepository:
     def index(self):
         with self.lock:
             self.cargo_build()
-            abi = None
             plugins = []
             for folder in plugin_dirs():
                 m = load_plugin(folder)
@@ -78,8 +77,8 @@ class LocalRepository:
                 if not files:
                     print(f"{m['id']}: no file built, left out (make linux / make windows)", file=sys.stderr)
                     continue
-                if m["kind"] == "library" and abi is None:
-                    abi = sdk_abi(locked=False)
+                # Each library's own SDK: two may differ.
+                abi = sdk_abi(m["package"], locked=False) if m["kind"] == "library" else None
                 changes = f"Local build of {m['id']} {m['version']} (working tree)"
                 # Made from the working tree alone, not from the committed plugins.json: a
                 # version has a compatible_from only when its manifest gives one.
