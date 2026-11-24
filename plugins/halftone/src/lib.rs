@@ -8,6 +8,27 @@ use artwork_plugin_sdk::{Effect, Generator, Image, Param, Role, Values, export_p
 
 struct Halftone;
 
+/// A share in %, in whole numbers.
+fn percent(id: &str, label: &str, min: f32, max: f32, default: f32) -> Param {
+    Param::float(id, label, min, max, default)
+        .unit(" %")
+        .decimals(0)
+}
+
+/// The dot size, then the angle and offsets of the screen: the effect's and the
+/// generator's, but for the dot size's smallest value and default.
+fn screen(dot_min: f32, dot_default: f32) -> [Param; 4] {
+    [
+        percent("dot_size", "Dot size", dot_min, 100.0, dot_default),
+        Param::float("angle", "Angle", 0.0, 90.0, 45.0)
+            .unit("°")
+            .decimals(0)
+            .role(Role::Angle),
+        percent("offset_x", "X offset", -100.0, 100.0, 0.0),
+        percent("offset_y", "Y offset", -100.0, 100.0, 0.0),
+    ]
+}
+
 /// What one cell of the screen samples from the image.
 #[derive(Clone, Copy, Default)]
 struct Cell {
@@ -31,23 +52,13 @@ impl Effect for Halftone {
     }
 
     fn params(&self) -> Vec<Param> {
-        vec![
+        let mut params = vec![
             Param::float("size", "Dot spacing", 2.0, 100.0, 8.0)
                 .unit(" px")
                 .role(Role::Size),
-            Param::float("dot_size", "Dot size", 0.0, 100.0, 100.0)
-                .unit(" %")
-                .decimals(0),
-            Param::float("angle", "Angle", 0.0, 90.0, 45.0)
-                .unit("°")
-                .decimals(0)
-                .role(Role::Angle),
-            Param::float("offset_x", "X offset", -100.0, 100.0, 0.0)
-                .unit(" %")
-                .decimals(0),
-            Param::float("offset_y", "Y offset", -100.0, 100.0, 0.0)
-                .unit(" %")
-                .decimals(0),
+        ];
+        params.extend(screen(0.0, 100.0));
+        params.extend([
             Param::choice(
                 "style",
                 "Dots",
@@ -56,7 +67,8 @@ impl Effect for Halftone {
             ),
             Param::color("ink", "Ink", [0, 0, 0, 255]),
             Param::color("paper", "Paper", [255, 255, 255, 255]),
-        ]
+        ]);
+        params
     }
 
     fn apply(&self, img: &mut Image, v: &Values, scale: f32) -> Result<(), String> {
@@ -202,24 +214,13 @@ impl Generator for DotGrid {
     }
 
     fn params(&self) -> Vec<Param> {
-        vec![
-            Param::float("spacing", "Spacing", 0.5, 50.0, 4.0).unit("mm"),
-            Param::float("dot_size", "Dot size", 1.0, 100.0, 50.0)
-                .unit(" %")
-                .decimals(0),
-            Param::float("angle", "Angle", 0.0, 90.0, 45.0)
-                .unit("°")
-                .decimals(0)
-                .role(Role::Angle),
-            Param::float("offset_x", "X offset", -100.0, 100.0, 0.0)
-                .unit(" %")
-                .decimals(0),
-            Param::float("offset_y", "Y offset", -100.0, 100.0, 0.0)
-                .unit(" %")
-                .decimals(0),
+        let mut params = vec![Param::float("spacing", "Spacing", 0.5, 50.0, 4.0).unit("mm")];
+        params.extend(screen(1.0, 50.0));
+        params.extend([
             Param::color("ink", "Ink", [0, 0, 0, 255]),
             Param::color("paper", "Paper", [255, 255, 255, 0]),
-        ]
+        ]);
+        params
     }
 
     fn generate(&self, img: &mut Image, v: &Values, px_per_mm: f32) -> Result<(), String> {
