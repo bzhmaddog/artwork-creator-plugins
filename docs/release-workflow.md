@@ -103,23 +103,29 @@ Runs when `resolve` succeeded and `build` succeeded or was skipped.
 
 ### 4. index
 
-Adds the version to `plugins.json` on the default branch. Runs when `publish` succeeded
-(an explicit condition: otherwise a skipped `build` would skip it too).
+Opens a pull request adding the version to `plugins.json`, to be merged by hand: the
+default branch is protected, and the workflow never pushes to it. Runs when `publish`
+succeeded (an explicit condition: otherwise a skipped `build` would skip it too).
 
-It has no concurrency group, because GitHub would cancel all but one pending run of a
-group and drop releases tagged together. Instead it retries up to 5 times:
-
-1. fetch the default branch and reset to it;
+1. check out the default branch and create the branch `index/<tag>` from it;
 2. `plugin_index.py merge entry.json`: adds the version to its plugin (creating the
    plugin if it's new), fills in `compatible_from` from the previous version when the
    manifest has none, keeps the versions newest first, updates `latest` and the plugin's
    details, and sorts the plugins by id; fails if the version is already there;
 3. `plugin_index.py validate`: the same checks as CI, on every manifest and the whole
    index;
-4. commit `Index <tag>` as `github-actions[bot]` and push. If another release pushed
-   first, wait and start over from the new `main`.
+4. commit `Index <tag>` as `github-actions[bot]` and force-push `index/<tag>`, so a
+   re-run replaces the branch an earlier run left;
+5. open a pull request `Index <tag>` from it to the default branch, with `entry.json` in
+   its description, unless one is already open for that branch.
 
-After 5 failed pushes the job fails, and the entry can be merged by hand (see
+Each release gets its own branch, so releases tagged together don't race. Their pull
+requests all edit `plugins.json`, though: after merging one, the next may need a rebase
+(re-running its `index` job rebuilds it from the new `main`).
+
+Pull requests opened with the workflow's `GITHUB_TOKEN` don't start other workflows, so
+CI doesn't run on them by itself. If the ruleset requires status checks, close and reopen
+the pull request to start CI, or merge as an admin bypassing the checks (see
 [When something goes wrong](publishing.md#when-something-goes-wrong)).
 
 ## Where the data comes from
@@ -131,7 +137,7 @@ run; nothing comes from outside users.
 |---|---|---|
 | `TAG` | the pushed tag | anyone with write access |
 | `plugin.json`, `Cargo.toml`, scripts, sources | the repository at the tag | anyone with write access |
-| `plugins.json` read by `merge` | the default branch | anyone with write access, and this workflow |
+| `plugins.json` read by `merge` | the default branch | anyone with write access, through a reviewed pull request |
 | built files (`asset-*`) | the `build` job of this run | the workflow |
 | `entry.json`, `notes.md` | `prepare` in the `publish` job of this run | the workflow |
 | downloaded files (`verify`) | the GitHub Release this run just published | the workflow (immutable once published) |

@@ -6,10 +6,11 @@
 #
 # The workflow builds the files (a Rust plugin: libX.so for Linux, linked against an old
 # glibc like the app, and X.dll for Windows; a Python plugin: its script), puts them on a
-# GitHub Release for that tag, downloads them back to check their SHA-256, then adds the
-# version to plugins.json on the default branch. With release immutability on (Settings >
-# General > Releases), a published release, its files and its tag can no longer change,
-# so the URLs in plugins.json always serve the bytes their hash describes.
+# GitHub Release for that tag, downloads them back to check their SHA-256, then opens a
+# pull request (branch index/<tag>) adding the version to plugins.json, to merge by hand.
+# With release immutability on (Settings > General > Releases), a published release, its
+# files and its tag can no longer change, so the URLs in plugins.json always serve the
+# bytes their hash describes.
 name: Release plugin
 
 on:
@@ -164,7 +165,7 @@ jobs:
           retention-days: 30
 
   index:
-    name: Update plugins.json
+    name: Index pull request
     needs: publish
     # Without this, the job is skipped whenever build was (a Python plugin): a job's default
     # condition, success(), counts every job upstream of it, skipped ones as failures.
@@ -172,11 +173,14 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
-    # No concurrency group: GitHub keeps only one pending run per group and cancels the
-    # others, which would drop releases tagged together. Concurrent pushes are handled by
-    # the fetch, merge and retry below instead.
+      pull-requests: write
+    # main is protected, so the entry goes on its own branch, index/<tag>, and a pull
+    # request to merge it by hand. Each release has its own branch, so releases tagged
+    # together don't race; the second pull request to merge may need a rebase.
     env:
       BRANCH: ${{ github.event.repository.default_branch }}
+      HEAD_BRANCH: index/${{ github.ref_name }}
+      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -189,14 +193,25 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          for attempt in 1 2 3 4 5; do
-            git fetch origin "$BRANCH"
-            git reset --hard "origin/$BRANCH"
-            python3 scripts/plugin_index.py merge "$RUNNER_TEMP/entry.json"
-            python3 scripts/plugin_index.py validate
-            git commit -am "Index $TAG"
-            if git push origin "HEAD:$BRANCH"; then exit 0; fi
-            sleep $((attempt * 5))
-          done
-          echo "::error::Could not push plugins.json; add $RUNNER_TEMP/entry.json (artifact index-entry) by hand."
-          exit 1
+          git switch -c "$HEAD_BRANCH"
+          python3 scripts/plugin_index.py merge "$RUNNER_TEMP/entry.json"
+          python3 scripts/plugin_index.py validate
+          git commit -am "Index $TAG"
+          # A re-run replaces the branch left by an earlier one.
+          git push --force origin "HEAD:refs/heads/$HEAD_BRANCH"
+      - name: Pull request
+        run: |
+          if [ -n "$(gh pr list --head "$HEAD_BRANCH" --state open --json number --jq '.[].number')" ]; then
+            echo "A pull request for $HEAD_BRANCH is already open; its branch was updated."
+            exit 0
+          fi
+          {
+            echo "Adds release [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG) to plugins.json."
+            echo
+            echo '```json'
+            cat "$RUNNER_TEMP/entry.json"
+            echo
+            echo '```'
+          } > "$RUNNER_TEMP/body.md"
+          gh pr create --base "$BRANCH" --head "$HEAD_BRANCH" \
+            --title "Index $TAG" --body-file "$RUNNER_TEMP/body.md"

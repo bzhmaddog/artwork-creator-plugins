@@ -8,7 +8,8 @@ make check
 make tag PLUGIN=halftone MSG="Line screen added"
 git push origin halftone-0.2.0
 # wait for the Release plugin workflow, then
-git pull                      # brings back the plugins.json commit it made
+# review and merge its "Index halftone-0.2.0" pull request, then
+git pull                      # brings back the plugins.json commit
 ```
 
 ## How it fits together
@@ -19,7 +20,8 @@ tag halftone-0.2.0 ──► Release plugin workflow
                         ├─ build     libhalftone.so (Linux, glibc 2.28) + halftone.dll (Windows)
                         ├─ publish   GitHub Release "halftone-0.2.0" with the files,
                         │            downloaded back to check their SHA-256
-                        └─ index     plugins.json on main gets the new version
+                        └─ index     pull request adding the version to plugins.json;
+                                     merged by hand into main
                                                   │
 Artwork Creator ◄── fetches plugins.json ─────────┘
                     downloads a file, checks its size and SHA-256
@@ -39,8 +41,11 @@ On GitHub, in the repository's settings:
 
 1. *General > Releases*: turn on **release immutability**.
 2. *Actions > General > Workflow permissions*: **Read and write permissions**, so the
-   workflow can create releases and push `plugins.json`. If `main` has a branch
-   protection rule or ruleset, let GitHub Actions bypass it.
+   workflow can create releases and push its `index/<tag>` branch, and tick **Allow
+   GitHub Actions to create and approve pull requests**, so it can open the pull request
+   that adds the version to `plugins.json`. `main` itself can stay protected: the
+   workflow never pushes to it. A ruleset must not cover `index/*` branches, or the
+   workflow can't push them.
 
 Locally: `cargo` and `python3` (3.11+). For `make windows`, the
 `x86_64-pc-windows-gnu` target and MinGW. For `make linux-portable`, zig and
@@ -200,8 +205,10 @@ git tag -d halftone-0.2.0
 A leftover draft is replaced on the next run. For a passing hiccup (a download timed
 out), *Re-run failed jobs* on the run is enough.
 
-**The release was published but `plugins.json` wasn't updated** (the *Update plugins.json*
-job failed, for example on a protected `main`). Fix the cause and *Re-run failed jobs*.
+**The release was published but no pull request was opened** (the *Index pull request*
+job failed, for example because the workflow may not create pull requests). Fix the cause
+and *Re-run failed jobs*; a re-run replaces the `index/<tag>` branch and reuses an open
+pull request.
 Or add the entry by hand: download the run's `index-entry` artifact (`entry.json`), then:
 
 ```sh
