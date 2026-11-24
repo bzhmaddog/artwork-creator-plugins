@@ -10,7 +10,7 @@ copies it into plugins.json as the version's dependencies, for the app to instal
 """
 
 import numpy as np
-from artwork_plugin_sdk import Effect, Plugin, choice_param, float_param, int_param
+from artwork_plugin_sdk import Effect, Plugin, choice_param, float_param, int_param, seed_param
 
 # Standard deviation of the noise at 100 %, in color levels (0-255).
 FULL_STRENGTH = 64
@@ -22,9 +22,10 @@ class FilmGrain(Effect):
     description = "Random noise, like the grain of film (Python plugin using numpy)"
     params = [
         int_param("amount", "Amount", 0, 100, 20, unit=" %"),
-        float_param("size", "Grain size", 1, 8, 1, unit=" px", decimals=1),
+        float_param("size", "Grain size", 1, 8, 1, unit=" px", decimals=1, role="size"),
         choice_param("kind", "Grain", [("mono", "Monochrome"), ("color", "Color")], "mono"),
-        int_param("seed", "Seed", 0, 9999, 0),
+        # Picked by the app when the effect is added, and with its regenerate button.
+        seed_param("seed", "Seed"),
     ]
 
     def apply(self, image, values, scale):

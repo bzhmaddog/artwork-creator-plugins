@@ -62,7 +62,7 @@ class LocalRepositoryTest(ServeTestCase):
         (out / "librusty.so").write_bytes(b"\x7fELF")
         with mock.patch.object(serve, "sdk_abi", return_value=3) as sdk_abi:
             [p] = serve.LocalRepository("u", []).index()["plugins"]
-        sdk_abi.assert_called_once_with(locked=False)
+        sdk_abi.assert_called_once_with("rusty", locked=False)
         v = p["versions"][0]
         self.assertEqual(v["abi"], 3)
         self.assertEqual(list(v["files"]), ["linux-x86_64"])

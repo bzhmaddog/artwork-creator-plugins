@@ -31,8 +31,8 @@ class Bands(Generator):
     description = "Stripes of two colors (Python example plugin)"
     params = [
         float_param("width", "Band width", 0.5, 100, 5, unit=" mm"),
-        # A float in degrees gets a dial: counterclockwise, 0 for horizontal bands.
-        float_param("angle", "Orientation", -180, 180, 0, unit="°", decimals=0),
+        # An angle gets a dial: counterclockwise, 0 for horizontal bands.
+        float_param("angle", "Orientation", -180, 180, 0, unit="°", decimals=0, role="angle"),
         color_param("first", "First color", "#1d3557ff"),
         color_param("second", "Second color", "#f1faeeff"),
     ]

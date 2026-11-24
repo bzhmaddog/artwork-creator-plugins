@@ -56,9 +56,10 @@ cargo-zigbuild. See the top of the `Makefile`.
 1. Create `plugins/<id>/`. The folder name is the plugin's id and the first part of its
    release tags: lowercase letters, digits and dashes.
 2. Add the code:
-   - **Rust**: a crate with `crate-type = ["cdylib"]` and
-     `artwork-plugin-sdk = { workspace = true }`. Add `"plugins/<id>"` to `members` in
-     the top `Cargo.toml` (CI fails if you forget).
+   - **Rust**: a crate with `crate-type = ["cdylib"]` and the SDK at an app release tag,
+     `artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator", tag = "v0.17.0" }`
+     (the latest, unless the plugin must keep working with older apps). Add
+     `"plugins/<id>"` to `members` in the top `Cargo.toml` (CI fails if you forget).
    - **Python**: one script. If it needs packages from PyPI, list them in a PEP 723 block
      at the top of the script; the release copies them into the index as the version's
      `dependencies`, for the app to install. See `plugins/film-grain/film_grain.py`:
@@ -76,6 +77,17 @@ cargo-zigbuild. See the top of the `Makefile`.
      plugins. `python3 scripts/plugin_index.py dependencies` lists every plugin's;
      `make install` and CI install them, and the plugin's tests are skipped where they
      aren't installed. Add a new one to the `[mypy-…]` sections of `mypy.ini` too.
+
+   A parameter's `role` tells the app what control to show: `seed` for an int that
+   picks a random variation (the app picks it when the effect is added, and again with
+   a button shown instead of a slider; declare it with `seed_param` / `Param::seed`),
+   `angle` for a float in degrees (a dial), `size` for a float length in pixels (shown
+   in mm on text and shape layers). See `Role` in the SDK, or `role=` of
+   `int_param` / `float_param` in Python. Roles need SDK 0.4.0 (app 0.17.0). A Rust
+   plugin using them still runs on older apps, which ignore them; a Python one doesn't,
+   as `role=` is new in the SDK the app provides. Without a role, the app guesses it
+   from an int's id `seed` and a float's unit `°` or `px`.
+
 3. Add `plugins/<id>/plugin.json`. Copy one from another plugin of the same kind and
    change it:
 
@@ -90,8 +102,7 @@ cargo-zigbuild. See the top of the `Makefile`.
      "kind": "python",
      "version": "1.0.0",
      "script": "my_effect.py",
-     "min_app": "0.16.0",
-     "sdk": "0.3.0",
+     "engines": {"app": ">=0.17.0", "sdk": ">=0.4.0"},
      "effects": ["My effect"],
      "generators": ["My generator"]
    }
@@ -102,7 +113,7 @@ cargo-zigbuild. See the top of the `Makefile`.
    list that would be empty, and update them in the version that adds or removes one:
    `make validate` checks them against the code.
 
-   A Rust plugin has `"kind": "library"` and no `version`, `script` or `sdk`: its version is
+   A Rust plugin has `"kind": "library"` and no `version`, `script` or `engines.sdk`: its version is
    the one in its `Cargo.toml`, and its ABI version is read from the SDK when it's released.
 4. Try it in the app: install it from the plugin manager with `make serve` (see
    [Trying plugins before a release](#trying-plugins-before-a-release)).
@@ -123,8 +134,12 @@ cargo-zigbuild. See the top of the `Makefile`.
    - Python: `version` in `plugins/<id>/plugin.json`. You can also update the version
      passed to `Plugin(...)` in the script to match.
 
-   Raise `min_app` (and `sdk` for Python) if the new version needs a newer app. Use
-   semantic versions, `X.Y.Z`.
+   Raise `engines.sdk` (Python) if the new version uses something a newer SDK added, such
+   as `role=`, and set `engines.app` if it needs the app itself to behave differently (a
+   fix it relies on). Use `>=`: an upper bound hides it from later apps that would run
+   it. Apps up to 0.16 don't read `engines`, only the `min_app` the release writes from
+   `engines.app`, so a Python plugin for an SDK newer than 0.3.0 also needs `engines.app`:
+   at least the app release that ships that SDK (`make validate` fails without it).
 
    If the new version can't read what earlier versions saved (an effect's settings renamed
    or changed meaning, a generator removed), set `"compatible_from"` in `plugin.json` to the
@@ -226,13 +241,27 @@ has the file can still check it.
 
 ## Moving to a newer app or SDK
 
-Rust plugins build against the SDK at the app tag set in the top `Cargo.toml`
-(`tag = "v0.16.0"`). To use a newer SDK:
+Each Rust plugin builds against the SDK at the app tag in its own `Cargo.toml`, so
+plugins move to a newer SDK one at a time: one whose code a new SDK breaks stays on its
+tag until it's ported, and one that must keep working with older apps can stay on an
+older SDK. `Cargo.lock` holds each SDK the workspace uses, and the release reads the ABI
+version of the plugin's own SDK. To move a plugin:
 
-1. Change the tag, then run `cargo update -p artwork-plugin-sdk` and `make check`.
-2. Bump the version and `min_app` of each plugin that should move to it, and release them.
-   A new SDK can raise the ABI version, which the release records as `abi`, next to
-   `min_app`. The app uses both to tell which versions it can load.
+1. Change the tag in its `Cargo.toml`, then run
+   `cargo update -p artwork-plugin-sdk@<old version>` (just `-p artwork-plugin-sdk` when
+   the workspace has one SDK) and `make check`.
+2. Bump its version and release it. A new SDK can raise the ABI version, which the
+   release records as `abi`. The app loads a library only for an ABI version it knows
+   (`OLDEST_ABI_VERSION` to `ABI_VERSION` in the SDK), so a Rust plugin needs no
+   `engines` for that; but apps that don't know the new ABI won't be offered it.
+
+A Python plugin runs with the SDK of the app it's installed in, the only one there. It
+moves by raising its `engines.sdk` (and `engines.app`, see
+[Releasing a version](#releasing-a-version)). An SDK release that removes or changes
+something Python plugins use raises `OLDEST_VERSION` in the SDK: apps from then on don't
+offer versions whose `engines.sdk` starts before it, and skip installed ones, with a
+message saying so. Release a ported version of each such plugin, with the new
+`engines.sdk`, before or with that app.
 
 The Linux build tools (glibc 2.28, zig, cargo-zigbuild) are pinned in
 `.github/workflows/release.yml` to the same versions as the app's release workflow. Keep

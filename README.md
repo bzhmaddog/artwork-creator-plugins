@@ -14,16 +14,15 @@ Each plugin is a folder of `plugins/` named after its id, with a `plugin.json` m
 |---|---|
 | `id`, `name`, `description`, `author`, `homepage`, `license` | shown in the plugin manager |
 | `kind` | `library` (a Rust crate, built as `.so` and `.dll`) or `python` (a script) |
-| `min_app` | oldest Artwork Creator version the plugin runs on |
+| `engines` | what the plugin needs of the app, as version requirements in Cargo's syntax, as npm's and VS Code's `engines`: `{"app": ">=0.17.0", "sdk": ">=0.4.0"}`. Operators `>=`, `>`, `<=`, `<`, `=`, joined by commas. `sdk`: Python only, required, at least the SDK that added the newest thing it uses (a library's is its ABI version). `app`: optional, for a plugin that relies on the app's own behavior (a fix it needs); a Python plugin for an SDK newer than 0.3.0 needs it too, from the app release that ships that SDK, as apps up to 0.16 don't read `engines` but only the `min_app` the release writes from it (`make validate` says so). Prefer `>=` alone: an upper bound hides the plugin from later apps that would run it |
 | `compatible_from` | optional: oldest version of this plugin whose saved settings and documents this version still reads, so the app can warn before an update that breaks them. Every version in the index has it: left out of the manifest, it's carried over from the previous release (a first release gets its own version). Set it to the new version in a release that breaks with the past |
 | `effects`, `generators` | display names of what it provides (the `name` each one has in the code), copied into each version in the index; at least one of the two, and checked against the code |
 | `version` | Python only (a Rust plugin's version is the one in its `Cargo.toml`) |
 | `script` | Python only: the file to publish |
-| `sdk` | Python only: the Python SDK version it was written for |
 
-A Rust plugin is also listed in the `members` of the workspace in the top `Cargo.toml`, which takes the
-plugin SDK from the Artwork Creator repository at a release tag. Its ABI version is read
-from that SDK at release time. A Python plugin's dependencies stay in its own PEP 723
+A Rust plugin is also listed in the `members` of the workspace in the top `Cargo.toml`, and takes the
+plugin SDK in its own `Cargo.toml` from the Artwork Creator repository at a release tag, so each
+plugin moves to a newer SDK on its own. Its ABI version is read from its SDK at release time. A Python plugin's dependencies stay in its own PEP 723
 block; the release copies them into the index as `dependencies`, so there's nothing to
 keep in step. `plugins/film-grain` is an example (numpy).
 

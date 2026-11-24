@@ -2,8 +2,10 @@
 """The plugin index (plugins.json) and the releases it points to.
 
 Each plugin is a folder of plugins/ with a plugin.json manifest (id, name, description, author,
-homepage, license, kind, min_app, optionally compatible_from, and effects and/or generators:
-the display names of what it provides; for a Python plugin also version, script and sdk).
+homepage, license, kind, optionally engines and compatible_from, and effects and/or generators:
+the display names of what it provides; for a Python plugin also version and script).
+engines says what the plugin needs of the app, as version requirements: {"app": ">=0.17.0",
+"sdk": ">=0.4.0"}; a Python plugin gives "sdk", a library none (its ABI version says it).
 A release is a tag <folder>-<version>; the Release workflow uses these commands:
 
   resolve TAG          check the tag against the plugin and print what to build, as
@@ -38,10 +40,19 @@ PLUGINS = ROOT / "plugins"
 TAG_RE = re.compile(r"^(?P<dir>[a-z0-9][a-z0-9-]*?)-(?P<version>\d+\.\d+\.\d+)$")
 VERSION_RE = re.compile(r"^\d+\.\d+\.\d+$")
 KINDS = ("library", "python")
-REQUIRED = ("id", "name", "description", "author", "license", "kind", "min_app")
+REQUIRED = ("id", "name", "description", "author", "license", "kind")
+# The newest SDK of the apps that don't read engines (0.16.x, which only read min_app,
+# written from engines.app): a Python plugin needing a later one needs an engines.app, or
+# they would offer it.
+UNCHECKED_SDK = "0.3.0"
+# What engines may name: the app and its plugin SDK.
+ENGINES = ("app", "sdk")
+# A clause of a version requirement: the subset of Cargo's syntax the app and this script
+# read the same way.
+REQ_CLAUSE_RE = re.compile(r"^(>=|<=|>|<|=)\s*(\d+\.\d+\.\d+)$")
 # Fields of a manifest copied to the plugin's entry in the index, and to each version.
 PLUGIN_FIELDS = ("id", "name", "description", "author", "homepage", "license", "kind")
-VERSION_FIELDS = ("min_app", "compatible_from", "sdk", "effects", "generators")
+VERSION_FIELDS = ("engines", "compatible_from", "effects", "generators")
 # What a plugin provides, as lists of display names (the names the code returns).
 PROVIDES = ("effects", "generators")
 PEP723_RE = re.compile(r"(?m)^# /// script\s*$\s(?P<content>(^#(| .*)$\s)+)^# ///$")
@@ -85,16 +96,51 @@ def inherited_compatible_from(index, plugin_id, version):
 
 
 def with_compatible_from(version, index, plugin_id):
-    """version (a dict) with compatible_from filled in, in its place after min_app."""
+    """version (a dict) with compatible_from filled in, in its place after min_app and engines."""
     if "compatible_from" in version:
         return version
+    after = [k for k in version if k in ("min_app", "engines")]
     out = {}
     for k, v in version.items():
         out[k] = v
-        if k == "min_app":
+        if after and k == after[-1]:
             out["compatible_from"] = inherited_compatible_from(index, plugin_id, version["version"])
     out.setdefault("compatible_from", inherited_compatible_from(index, plugin_id, version["version"]))
     return out
+
+
+def requirement(text):
+    """The clauses (operator, version) of a version requirement in Cargo's syntax, as the app
+    reads it, limited to >=, >, <=, < and = before X.Y.Z, joined by commas: ">=0.4.0, <2.0.0"."""
+    if not isinstance(text, str) or not text.strip():
+        raise Error(f"{text!r} is not a version requirement")
+    clauses = []
+    for part in text.split(","):
+        c = REQ_CLAUSE_RE.match(part.strip())
+        if not c:
+            raise Error(f"{text!r} is not a version requirement: >=, >, <=, < or = before X.Y.Z, joined by commas")
+        clauses.append((c[1], c[2]))
+    return clauses
+
+
+def lower_bound(text):
+    """The version a requirement starts at (its >= or =), or None."""
+    return max((v for op, v in requirement(text) if op in (">=", "=")), key=semver, default=None)
+
+
+def engines_errors(engines, kind):
+    """Problems with the engines of a manifest or an index version."""
+    if not isinstance(engines, dict) or not engines:
+        return ["engines must be an object naming app and/or sdk"]
+    errors = [f"engines.{k}: unknown, use {' or '.join(ENGINES)}" for k in engines if k not in ENGINES]
+    for k, req in engines.items():
+        try:
+            requirement(req)
+        except Error as e:
+            errors.append(f"engines.{k}: {e}")
+    if kind == "library" and "sdk" in engines:
+        errors.append("engines.sdk: a library's SDK is checked through its ABI version")
+    return errors
 
 
 def provides_errors(d):
@@ -165,6 +211,9 @@ def load_plugin(folder):
     m = json.loads(path.read_text(encoding="utf-8"))
     if "compat_from" in m:
         raise Error(f"{path.name} of {folder.name}: compat_from is spelled compatible_from")
+    for old in ("min_app", "min_sdk", "sdk"):
+        if old in m:
+            raise Error(f'{path.name} of {folder.name}: {old} is now in engines, e.g. "engines": {{"app": ">=0.17.0"}}')
     missing = [k for k in REQUIRED if not m.get(k)]
     if missing:
         raise Error(f"{path.name} of {folder.name}: missing {', '.join(missing)}")
@@ -200,6 +249,24 @@ def load_plugin(folder):
     problems = compatible_from_errors(m)
     if problems:
         raise Error(f"{folder.name}: {'; '.join(problems)}")
+    engines = m.get("engines")
+    if engines is not None:
+        problems = engines_errors(engines, m["kind"])
+        if problems:
+            raise Error(f"{folder.name}: {'; '.join(problems)}")
+    if m["kind"] == "python":
+        sdk = (engines or {}).get("sdk")
+        if sdk is None:
+            raise Error(f'{folder.name}: a Python plugin needs engines.sdk, e.g. "engines": {{"sdk": ">=0.3.0"}}')
+        start = lower_bound(sdk)
+        if start is None:
+            raise Error(f"{folder.name}: engines.sdk {sdk!r} needs a >= bound")
+        app = engines.get("app")
+        if semver(start) > semver(UNCHECKED_SDK) and not (app and lower_bound(app)):
+            raise Error(
+                f"{folder.name}: engines.sdk {sdk!r} needs an engines.app >= the app release that ships it: "
+                f"apps for SDK {UNCHECKED_SDK} and before read only the min_app written from it"
+            )
     return m
 
 
@@ -240,8 +307,9 @@ def cmd_resolve(args):
         print(f"{k}={v}")
 
 
-def sdk_abi(locked=True):
-    """ABI_VERSION of the plugin SDK the workspace builds against."""
+def sdk_abi(package, locked=True):
+    """ABI_VERSION of the plugin SDK the Rust plugin `package` builds against: each plugin
+    takes its own, so two in the workspace may differ."""
     meta = json.loads(
         subprocess.run(
             ["cargo", "metadata", "--format-version", "1"] + (["--locked"] if locked else []),
@@ -251,13 +319,18 @@ def sdk_abi(locked=True):
             text=True,
         ).stdout
     )
-    for p in meta["packages"]:
-        if p["name"] == "artwork-plugin-sdk":
-            abi = Path(p["manifest_path"]).parent / "src" / "abi.rs"
-            found = re.search(r"pub const ABI_VERSION: u32 = (\d+);", abi.read_text(encoding="utf-8"))
-            if found:
-                return int(found[1])
-    raise Error("ABI_VERSION of artwork-plugin-sdk not found")
+    packages = {p["id"]: p for p in meta["packages"]}
+    name = lambda pkg: packages.get(pkg, {}).get("name")  # noqa: E731
+    nodes = (meta.get("resolve") or {}).get("nodes", [])
+    node = next((n for n in nodes if name(n["id"]) == package), None)
+    sdk = next((d["pkg"] for d in (node or {}).get("deps", []) if name(d["pkg"]) == "artwork-plugin-sdk"), None)
+    if sdk is None:
+        raise Error(f"{package} doesn't depend on artwork-plugin-sdk")
+    abi = Path(packages[sdk]["manifest_path"]).parent / "src" / "abi.rs"
+    found = re.search(r"pub const ABI_VERSION: u32 = (\d+);", abi.read_text(encoding="utf-8"))
+    if not found:
+        raise Error(f"ABI_VERSION of artwork-plugin-sdk not found in {abi}")
+    return int(found[1])
 
 
 def tag_message(tag):
@@ -298,7 +371,11 @@ def plugin_entry(folder, m, files, changes=None, abi=None, index=None):
     doesn't give is taken from it (merge does that for a release, against main's index)."""
     version = {"version": m["version"], "released": datetime.date.today().isoformat()}
     if m["kind"] == "library":
-        version["abi"] = abi if abi is not None else sdk_abi()
+        version["abi"] = abi if abi is not None else sdk_abi(m["package"])
+    app = (m.get("engines") or {}).get("app")
+    if app and lower_bound(app):
+        # For the apps before engines (0.16), which read only this.
+        version["min_app"] = lower_bound(app)
     for k in VERSION_FIELDS:
         if m.get(k):
             version[k] = m[k]
@@ -431,6 +508,8 @@ def cmd_validate(args):
             if not v.get("compatible_from"):
                 errors.append(f"{where} has no compatible_from")
             errors += [f"{where}: {e}" for e in provides_errors(v) + compatible_from_errors(v)]
+            if "engines" in v:
+                errors += [f"{where}: {e}" for e in engines_errors(v["engines"], p.get("kind"))]
             deps = v.get("dependencies", [])
             if not isinstance(deps, list) or not all(isinstance(d, str) and d.strip() for d in deps):
                 errors.append(f"{where}: dependencies must be a list of requirement strings")

@@ -25,6 +25,10 @@ class DeclaredTest(unittest.TestCase):
     def test_names(self):
         self.assertEqual([e.name for e in film_grain.plugin.effects], ["Film grain"])
 
+    def test_roles(self):
+        roles = {p["id"]: p.get("role") for p in film_grain.FilmGrain.params}
+        self.assertEqual(roles, {"amount": None, "size": "size", "kind": None, "seed": "seed"})
+
 
 class FilmGrainTest(unittest.TestCase):
     def test_amount_zero_changes_nothing(self):
