@@ -57,7 +57,7 @@ cargo-zigbuild. See the top of the `Makefile`.
    release tags: lowercase letters, digits and dashes.
 2. Add the code:
    - **Rust**: a crate with `crate-type = ["cdylib"]` and the SDK at an app release tag,
-     `artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator", tag = "v0.17.0" }`
+     `artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.17.0" }`
      (the latest, unless the plugin must keep working with older apps). Add
      `"plugins/<id>"` to `members` in the top `Cargo.toml` (CI fails if you forget).
    - **Python**: one script. If it needs packages from PyPI, list them in a PEP 723 block

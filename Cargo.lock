@@ -5,7 +5,7 @@ version = 4
 [[package]]
 name = "artwork-plugin-sdk"
 version = "0.4.0"
-source = "git+https://github.com/bzhmaddog/artwork-creator?tag=v0.17.0#b08ef32f84a82a09d1ed5276678692e6e2ce6be4"
+source = "git+https://github.com/bzhmaddog/artwork-creator-app?tag=v0.17.0#b08ef32f84a82a09d1ed5276678692e6e2ce6be4"
 dependencies = [
  "serde",
  "serde_json",

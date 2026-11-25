@@ -1,5 +1,5 @@
 # artwork-creator-plugins
-A plugin repository for [Artwork Creator](https://github.com/bzhmaddog/artwork-creator).
+A plugin repository for [Artwork Creator](https://github.com/bzhmaddog/artwork-creator-app).
 
 `plugins.json` is the index the app reads: each plugin, its `latest` version, its versions, and for each version
 the files to download (per platform), with their SHA-256 and size. Every URL points to an

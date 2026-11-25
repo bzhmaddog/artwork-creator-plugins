@@ -12,4 +12,4 @@ crate-type = ["cdylib"]
 [dependencies]
 # The plugin SDK at an app release tag: raise it on purpose, then
 # `cargo update -p artwork-plugin-sdk@<old version>`.
-artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator", tag = "v0.17.0" }
+artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.17.0" }
