@@ -53,7 +53,10 @@ On GitHub, in the repository's settings:
    that adds the version to `plugins.json`. `main` itself can stay protected: the
    workflow never pushes to it. A ruleset must not cover `index/*` branches, or the
    workflow can't push them.
-3. *Pages*: **Source** set to **GitHub Actions**, for the Pages workflow.
+3. *Pages*: **Source** set to **GitHub Actions**, for the Pages workflow. Then run it
+   once by hand (*Actions > Pages > Run workflow*): it starts by itself only when
+   `plugins.json` changes. Check that
+   `https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json` serves the index.
 
 Locally: `cargo` and `python3` (3.11+). For `make windows`, the
 `x86_64-pc-windows-gnu` target and MinGW. For `make linux-portable`, zig and
@@ -188,8 +191,11 @@ cargo-zigbuild. See the top of the `Makefile`.
 
 6. **Watch** *Actions > Release plugin*. When it's done:
    - *Releases* has `halftone-0.2.0` with the files and their SHA-256 in its notes.
-   - `main` has a commit "Index halftone-0.2.0" that adds the version to `plugins.json`.
-7. **`git pull`** to get that commit before your next change.
+   - A pull request "Index halftone-0.2.0" adds the version to `plugins.json`. Merge it.
+7. **Watch** *Actions > Pages*: the merge starts it. Once it has passed, the Pages URL
+   serves the new version, and the app offers it. Until then, only app versions up to
+   0.19.0, which read `plugins.json` on `main`, see it.
+8. **`git pull`** to get the merge before your next change.
 
 Several plugins can be released at once. Each tag runs its own workflow, and their
 `plugins.json` commits go in one after another.
@@ -251,6 +257,12 @@ python3 scripts/plugin_index.py merge entry.json
 python3 scripts/plugin_index.py validate
 git commit -am "Index halftone-0.2.0" && git push
 ```
+
+**The index was merged but the app doesn't offer the new version.** Look at
+*Actions > Pages*. If no run started (Pages wasn't enabled yet, say), run it by hand. If
+it failed at `validate`, the repository on `main` doesn't pass `make validate`, maybe
+because of another plugin: fix that on `main`, then run the workflow by hand. The site
+keeps the last index that passed meanwhile.
 
 **A published version is broken.** You can't replace its files or reuse its version.
 Release a fix as the next version (`0.2.1`). To stop the app offering the broken one,

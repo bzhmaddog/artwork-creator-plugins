@@ -37,8 +37,8 @@ git push origin halftone-0.2.0
 ```
 
 The **Release plugin** workflow builds the files, publishes them on the GitHub Release for
-that tag, checks their hashes, and commits the new version to `plugins.json` on `main`.
-The **Pages** workflow then publishes `plugins.json` on GitHub Pages, at
+that tag, checks their hashes, and opens an "Index <tag>" pull request that adds the new
+version to `plugins.json`. Once you merge it, the **Pages** workflow publishes `plugins.json` on GitHub Pages, at
 `https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json`, where the app reads it.
 The whole process, adding a new plugin, and what to do when a release fails:
 [docs/publishing.md](docs/publishing.md).
@@ -100,7 +100,8 @@ says so when it's missing).
 
 - *Settings > General > Releases*: turn on **release immutability**, so a published
   release, its files and its tag can't be changed or moved.
-- *Settings > Actions > General > Workflow permissions*: the workflow pushes
-  `plugins.json` to `main` with `GITHUB_TOKEN`; if `main` is protected, let GitHub
-  Actions bypass the rule.
+- *Settings > Actions > General > Workflow permissions*: **Read and write permissions**,
+  and **Allow GitHub Actions to create and approve pull requests**: the workflow pushes its
+  `index/<tag>` branch and opens the pull request with `GITHUB_TOKEN`. It never pushes
+  to `main`, which can stay protected.
 - *Settings > Pages*: **Source** set to **GitHub Actions**, for the Pages workflow.
