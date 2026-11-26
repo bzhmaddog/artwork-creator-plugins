@@ -1,0 +1,58 @@
+# Publishes plugins.json on GitHub Pages, where the app reads the official repository:
+# https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json. The file stays in the
+# repository, where the Release workflow's "Index" pull requests add versions to it, and
+# its copy on main stays too: app versions before the move read it there.
+#
+# Runs on each push to main that changes plugins.json (an "Index <tag>" pull request
+# merged, or a version removed by hand) or this workflow, and by hand (Actions > Pages >
+# Run workflow). The whole repository is validated first, as CI does (every manifest and
+# plugins.json): if it doesn't pass, nothing is published and the site keeps the last index
+# that did.
+#
+# Needs Settings > Pages > Source set to "GitHub Actions" once.
+name: Pages
+
+on:
+  push:
+    branches: [main]
+    paths: [plugins.json, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# One deployment at a time: a run in progress is never canceled. Of the runs waiting
+# behind it, only the newest is kept, and it publishes the latest plugins.json.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python3 scripts/plugin_index.py validate
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp plugins.json _site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

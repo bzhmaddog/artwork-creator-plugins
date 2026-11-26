@@ -136,6 +136,17 @@ CI doesn't run on them by itself. If the ruleset requires status checks, close a
 the pull request to start CI, or merge as an admin bypassing the checks (see
 [When something goes wrong](publishing.md#when-something-goes-wrong)).
 
+## After the merge: the Pages workflow
+
+The app doesn't read `plugins.json` on the default branch (only versions up to 0.19.0
+do), but its copy on GitHub Pages. `.github/workflows/pages.yml` publishes it: on each
+push to `main` that changes `plugins.json` or the workflow, and by hand. Its `build` job runs
+`plugin_index.py validate` (the whole repository, as CI does) and uploads `plugins.json`
+alone as the site; its `deploy` job, the only one with `pages: write` and
+`id-token: write`, deploys it. If `validate` fails, nothing is deployed and the site keeps
+the previous index. So a merged Index pull request reaches the app only once that workflow
+has passed.
+
 ## Where the data comes from
 
 Every input of the workflow comes from the repository or from an earlier job of the same
@@ -149,6 +160,7 @@ run; nothing comes from outside users.
 | built files (`asset-*`) | the `build` job of this run | the workflow |
 | `entry.json`, `notes.md` | `prepare` in the `publish` job of this run | the workflow |
 | downloaded files (`verify`) | the GitHub Release this run just published | the workflow (immutable once published) |
+| `plugins.json` the app reads | GitHub Pages, deployed by the Pages workflow from the default branch | anyone with write access, through a reviewed pull request or a run by hand |
 
 Each file the workflow writes has a fixed name: `plugins.json` at the repository root,
 `entry.json` and `notes.md` in `$RUNNER_TEMP`. No name or path written to is built from

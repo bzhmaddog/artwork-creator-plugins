@@ -3,7 +3,8 @@
 Plugin repository for Artwork Creator (the app is in `../artwork-creator-app`). README.md and
 docs/publishing.md describe everything in detail; the rules that matter most:
 
-- **`plugins.json`**: the index the app reads. Its `versions` are written only by the
+- **`plugins.json`**: the index the app reads, from GitHub Pages (the Pages workflow
+  publishes it when it changes on `main`). Its `versions` are written only by the
   Release workflow; never edit them by hand.
 - **A plugin** is a folder `plugins/<id>/` with a `plugin.json` manifest. `kind` is
   `library` (Rust cdylib) or `python` (one script). A Python plugin's `version` and
