@@ -77,12 +77,14 @@ class MeasureTest(unittest.TestCase):
 
 class GitEnvironmentTest(unittest.TestCase):
     def test_variables_naming_a_repository_are_removed(self):
-        # git's own list, as tests/__init__.py has it.
+        # Every one the installed git lists is in tests/__init__.py's list (which may name more:
+        # the list differs between git versions, and removing a variable git doesn't set is
+        # harmless), and none is left.
         listed = subprocess.run(
             ["git", "rev-parse", "--local-env-vars"], capture_output=True, text=True, check=True
         ).stdout.split()
-        self.assertEqual(sorted(listed), sorted(tests.GIT_LOCAL_ENV_VARS))
-        self.assertFalse([v for v in listed if v in os.environ])
+        self.assertEqual(sorted(set(listed) - set(tests.GIT_LOCAL_ENV_VARS)), [])
+        self.assertEqual([v for v in tests.GIT_LOCAL_ENV_VARS if v in os.environ], [])
 
 
 class MainTest(unittest.TestCase):

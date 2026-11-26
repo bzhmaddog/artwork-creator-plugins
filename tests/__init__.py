@@ -4,7 +4,8 @@ Run inside a git hook (the pre-commit one), git sets variables naming this repos
 index the commit is being made from (GIT_INDEX_FILE, GIT_DIR...). The tests run git in
 repositories of their own, and so does the code they test: with those variables, it would
 write into that index, the commit then made from it. They are removed before any test runs
-(the list of `git rev-parse --local-env-vars`).
+(the list of `git rev-parse --local-env-vars`, of every git version: a newer one may drop a
+name, an older one list fewer).
 
 The scripts are imported as top-level modules, so scripts/ goes on the path here too.
 """
