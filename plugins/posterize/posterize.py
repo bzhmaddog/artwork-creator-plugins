@@ -33,8 +33,8 @@ class Bands(Generator):
         float_param("width", "Band width", 0.5, 100, 5, unit=" mm"),
         # An angle gets a dial: counterclockwise, 0 for horizontal bands.
         float_param("angle", "Orientation", -180, 180, 0, unit="°", decimals=0, role="angle"),
-        color_param("first", "First color", "#1d3557ff"),
-        color_param("second", "Second color", "#f1faeeff"),
+        color_param("first", "First color", "#1d3557ff", group="Colors"),
+        color_param("second", "Second color", "#f1faeeff", group="Colors"),
     ]
 
     def generate(self, image, values, px_per_mm):
@@ -63,4 +63,4 @@ class Bands(Generator):
         image.pixels[:] = out
 
 
-plugin = Plugin("Posterize", "1.0.1", effects=[Posterize()], generators=[Bands()])
+plugin = Plugin("Posterize", "1.1.0", effects=[Posterize()], generators=[Bands()])
