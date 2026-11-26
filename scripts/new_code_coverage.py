@@ -2,11 +2,12 @@
 """Coverage of new code, as the SonarQube Cloud quality gate measures it: the share of the
 lines added or changed since the branch left main that the tests run.
 
-Usage: new_code_coverage.py [--min PERCENT] [--base REF]
+Usage: new_code_coverage.py [--min PERCENT]
 
 Reads the lcov reports coverage/python.lcov and coverage/rust.lcov (make coverage-python and
 make coverage-rust write them; fixed paths, nothing read is named on the command line) and
-the lines changed since the merge base of HEAD and REF (origin/main, or main without it):
+the lines changed since the merge base of HEAD and origin/main (main without it; no branch
+is taken from the command line, nor anything else handed to git):
 committed, staged or not. A new file counts once git knows it (git add, as for a commit);
 it isn't read by its name. Files Sonar leaves out (sonar.exclusions in sonar-project.properties: the
 tests) are left out here too. Fails when fewer than PERCENT (80, the gate's threshold) of
@@ -35,14 +36,21 @@ def git(*args):
     return subprocess.run(["git", *args], cwd=ROOT, check=True, capture_output=True, text=True).stdout
 
 
-def base(ref=None):
-    """Where the branch left `ref` (origin/main, or main when there's no origin/main)."""
-    if ref is None:
-        known = subprocess.run(
-            ["git", "rev-parse", "-q", "--verify", "origin/main"], cwd=ROOT, capture_output=True, check=False
-        )
-        ref = "origin/main" if known.returncode == 0 else "main"
-    return git("merge-base", "HEAD", ref).strip()
+# The branches new code is measured against, the first that exists: fixed, never from outside.
+BASES = ("origin/main", "main")
+COMMIT_RE = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?")
+
+
+def base():
+    """Where the branch left origin/main (or main when there's no origin/main): a commit hash,
+    checked to be one before it's handed to git diff."""
+    ref = next((b for b in BASES if subprocess.run(
+        ["git", "rev-parse", "-q", "--verify", b], cwd=ROOT, capture_output=True, check=False
+    ).returncode == 0), BASES[-1])  # fmt: skip
+    since = git("merge-base", "HEAD", ref).strip()
+    if not COMMIT_RE.fullmatch(since):
+        raise Error(f"git merge-base gave {since!r}, not a commit hash")
+    return since
 
 
 def diff_lines(diff):
@@ -61,6 +69,8 @@ def diff_lines(diff):
 def new_lines(since):
     """The lines added since the commit `since`, by file (git diff, with the new files git
     knows)."""
+    if not COMMIT_RE.fullmatch(since):
+        raise Error(f"{since!r} is not a commit hash")
     return diff_lines(git("diff", "-U0", "--no-color", since, "--", *SOURCES))
 
 
@@ -119,7 +129,6 @@ def measure(new, covered, excluded=()):
 def main(argv=None):
     ap = argparse.ArgumentParser(description="Coverage of the code changed since main.")
     ap.add_argument("--min", type=float, default=80, help="the share to reach, in percent (80)")
-    ap.add_argument("--base", help="the branch new code is measured against (origin/main, or main)")
     args = ap.parse_args(argv)
     covered: dict[str, dict[int, int]] = {}
     for report in REPORTS:
@@ -130,7 +139,7 @@ def main(argv=None):
             covered.setdefault(file, {}).update(hits)
     properties = ROOT / "sonar-project.properties"
     excluded = sonar_exclusions(properties.read_text(encoding="utf-8")) if properties.is_file() else []
-    since = base(args.base)
+    since = base()
     total, hit, missed = measure(new_lines(since), covered, excluded)
     if not total:
         print("coverage: no new lines to cover")

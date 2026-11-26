@@ -155,8 +155,20 @@ class MainTest(unittest.TestCase):
         code, out = self.run_main("SF:a.py\nDA:1,1\n")
         self.assertEqual((code, out), (0, "coverage: no new lines to cover\n"))
 
-    def test_base_given_or_found(self):
-        self.assertEqual(ncc.base("main"), ncc.base())
+    def test_base_is_main_without_origin(self):
+        main = subprocess.run(["git", "rev-parse", "main"], cwd=self.root, capture_output=True, text=True, check=True)
+        self.assertEqual(ncc.base(), main.stdout.strip())
+
+    def test_only_a_commit_hash_reaches_git_diff(self):
+        for since in ("--output=x", "main", "HEAD~1", ""):
+            with self.assertRaisesRegex(ncc.Error, "not a commit hash"):
+                ncc.new_lines(since)
+        with mock.patch.object(ncc, "git", return_value="-x\n"), self.assertRaisesRegex(ncc.Error, "gave '-x'"):
+            ncc.base()
+
+    def test_no_option_names_a_branch(self):
+        with self.assertRaises(SystemExit), mock.patch("sys.stderr", io.StringIO()):
+            ncc.main(["--base", "--output=x"])
 
     def test_a_missing_report(self):
         self.write("coverage/python.lcov", "")
