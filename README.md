@@ -38,6 +38,8 @@ git push origin halftone-0.2.0
 
 The **Release plugin** workflow builds the files, publishes them on the GitHub Release for
 that tag, checks their hashes, and commits the new version to `plugins.json` on `main`.
+The **Pages** workflow then publishes `plugins.json` on GitHub Pages, at
+`https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json`, where the app reads it.
 The whole process, adding a new plugin, and what to do when a release fails:
 [docs/publishing.md](docs/publishing.md).
 
@@ -101,3 +103,4 @@ says so when it's missing).
 - *Settings > Actions > General > Workflow permissions*: the workflow pushes
   `plugins.json` to `main` with `GITHUB_TOKEN`; if `main` is protected, let GitHub
   Actions bypass the rule.
+- *Settings > Pages*: **Source** set to **GitHub Actions**, for the Pages workflow.

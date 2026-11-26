@@ -23,12 +23,19 @@ tag halftone-0.2.0 ──► Release plugin workflow
                         └─ index     pull request adding the version to plugins.json;
                                      merged by hand into main
                                                   │
+                       Pages workflow ◄───────────┘
+                        └─ validates plugins.json, publishes it on GitHub Pages
+                                                  │
 Artwork Creator ◄── fetches plugins.json ─────────┘
                     downloads a file, checks its size and SHA-256
 ```
 
 - **`plugins/<id>/`** holds a plugin: its code and a `plugin.json` manifest.
 - **`plugins.json`** is the index the app reads. Only the Release workflow adds versions to it.
+  The Pages workflow publishes it at
+  `https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json` each time it changes
+  on `main`, where the app reads it. App versions up to 0.19.0 read it from `main`
+  itself (`raw.githubusercontent.com`), so the file stays there too.
 - **Releases** hold the files. With release immutability on, a published release, its files
   and its tag can't change, so a URL in `plugins.json` always serves the bytes its hash
   describes.
@@ -46,6 +53,7 @@ On GitHub, in the repository's settings:
    that adds the version to `plugins.json`. `main` itself can stay protected: the
    workflow never pushes to it. A ruleset must not cover `index/*` branches, or the
    workflow can't push them.
+3. *Pages*: **Source** set to **GitHub Actions**, for the Pages workflow.
 
 Locally: `cargo` and `python3` (3.11+). For `make windows`, the
 `x86_64-pc-windows-gnu` target and MinGW. For `make linux-portable`, zig and
