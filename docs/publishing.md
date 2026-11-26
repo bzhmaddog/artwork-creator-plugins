@@ -267,6 +267,28 @@ version of the plugin's own SDK. To move a plugin:
    (`OLDEST_ABI_VERSION` to `ABI_VERSION` in the SDK), so a Rust plugin needs no
    `engines` for that; but apps that don't know the new ABI won't be offered it.
 
+### Working with an SDK that isn't released yet
+
+To change the SDK and a plugin together, build against the SDK of a local app checkout:
+
+```sh
+make sdk-local     # SDK_PATH=../artwork-creator-app/plugin-sdk by default
+make sdk-github    # back to the SDK from GitHub
+```
+
+`make install` runs `make sdk-local` when it finds the app checkout there (and
+`make sdk-github` wasn't chosen since: it leaves an existing `.cargo/config.toml` alone).
+`make sdk-local` writes a `[patch]` in `.cargo/config.toml`, which git ignores, so it is
+for this clone only: the `Cargo.toml` files keep their git dependency (`make validate`
+refuses a `path` one, which CI couldn't build, as it checks out this repository alone).
+Every build, test and `make serve` then uses the local SDK. `Cargo.lock` names the local
+SDK meanwhile, so it shows as changed: leave it out of commits (the commit hook refuses
+it), or run `make sdk-github` first when it has a change of its own to commit.
+
+Until the app releases the SDK, CI needs it from GitHub too: point the plugin at a pushed
+commit of the app, `rev = "<commit>"` in place of `tag`, and move it to the release
+tag before releasing the plugin.
+
 A Python plugin runs with the SDK of the app it's installed in, the only one there. It
 moves by raising its `engines.sdk` (and `engines.app`, see
 [Releasing a version](#releasing-a-version)). An SDK release that removes or changes

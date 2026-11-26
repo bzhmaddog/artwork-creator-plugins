@@ -84,7 +84,10 @@ moving the clone: the hook names the `.venv`'s Python by its path.
 everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
 components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
 a `.venv` with `requirements-dev.txt` and the Python plugins' dependencies (which make then
-uses), and the git hooks.
+uses), and the git hooks. With the app checked out next to this repository
+(`../artwork-creator-app`), it also makes the Rust plugins build against that app's plugin SDK
+instead of the one from GitHub, for this clone only (`make sdk-local`, see
+[Working with an SDK that isn't released yet](docs/publishing.md#working-with-an-sdk-that-isnt-released-yet)).
 `requirements-dev.txt` is generated and hash-locked: edit the tool versions in
 `requirements-dev.in`, then run `make lock` to regenerate it. Running it
 again only updates what's missing. The one thing it doesn't install is MinGW, the linker of

@@ -18,6 +18,8 @@ A release is a tag <folder>-<version>; the Release workflow uses these commands:
   pull-request TAG ENTRY ...  merge, validate and commit the entry on its own branch, push
                        it and open a pull request for it (git, gh)
   validate             check plugins.json and every manifest (CI)
+  check-lock [FILE]    fail if Cargo.lock (FILE, - for stdin) takes the plugin SDK from
+                       anywhere but GitHub, as after make sdk-local (the commit hook)
   version PLUGIN       print a plugin's version (make tag)
   dependencies         print the Python plugins' dependencies, one per line (pip install)
 
@@ -59,6 +61,8 @@ PLUGIN_FIELDS = ("id", "name", "description", "author", "homepage", "license", "
 VERSION_FIELDS = ("engines", "compatible_from", "effects", "generators")
 # What a plugin provides, as lists of display names (the names the code returns).
 PROVIDES = ("effects", "generators")
+# The plugin SDK's crate, which the Rust plugins take from the app's repository.
+SDK_PACKAGE = "artwork-plugin-sdk"
 PEP723_RE = re.compile(r"(?m)^# /// script\s*$\s(?P<content>(^#(| .*)$\s)+)^# ///$")
 
 
@@ -397,6 +401,39 @@ def sdk_abi(package, locked=True):
     return int(found[1])
 
 
+def sdk_dependency_errors(cargo_toml, where):
+    """Problems with how the Rust plugin's Cargo.toml (its text) takes the plugin SDK: from
+    the app's repository on GitHub, as CI and the releases have only this one."""
+    dep = tomllib.loads(cargo_toml).get("dependencies", {}).get(SDK_PACKAGE)
+    if dep is None or (isinstance(dep, dict) and "git" in dep):
+        return []
+    return [
+        f"{where}: {SDK_PACKAGE} must come from the app's repository (git and tag), as CI has only "
+        "this one; make sdk-local builds against a local SDK"
+    ]
+
+
+def lock_errors(lock):
+    """Problems with Cargo.lock (its text): an SDK not from GitHub, as make sdk-local writes
+    it, which CI's --locked builds refuse."""
+    packages = tomllib.loads(lock).get("package", [])
+    return [
+        f"Cargo.lock: {SDK_PACKAGE} {p.get('version')} is not from GitHub (make sdk-local?): "
+        "run make sdk-github, or leave Cargo.lock out of the commit"
+        for p in packages
+        if p.get("name") == SDK_PACKAGE and not str(p.get("source", "")).startswith("git+https://github.com/")
+    ]
+
+
+def cmd_check_lock(args):
+    lock = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8")
+    errors = lock_errors(lock)
+    for problem in errors:
+        print(f"::error::{problem}")
+    if errors:
+        raise Error(f"{len(errors)} problem(s)")
+
+
 def tag_message(tag):
     """The message of an annotated tag (the version's changes), or None."""
 
@@ -618,6 +655,7 @@ def cmd_validate(args):
     for cargo in PLUGINS.glob("*/Cargo.toml"):
         if f"plugins/{cargo.parent.name}" not in workspace:
             errors.append(f"plugins/{cargo.parent.name} is not in the workspace members of Cargo.toml")
+        errors += sdk_dependency_errors(cargo.read_text(encoding="utf-8"), f"plugins/{cargo.parent.name}/Cargo.toml")
     index = json.loads(INDEX.read_text(encoding="utf-8"))
     if index.get("format") != 1 or not isinstance(index.get("plugins"), list):
         errors.append("plugins.json: needs format 1 and a plugins list")
@@ -727,6 +765,9 @@ def main():
     s.set_defaults(fn=cmd_version)
     s = sub.add_parser("validate")
     s.set_defaults(fn=cmd_validate)
+    s = sub.add_parser("check-lock")
+    s.add_argument("file", nargs="?", default=str(ROOT / "Cargo.lock"))
+    s.set_defaults(fn=cmd_check_lock)
     s = sub.add_parser("dependencies")
     s.set_defaults(fn=cmd_dependencies)
     args = ap.parse_args()

@@ -8,8 +8,8 @@
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
 #                     components, cargo-zigbuild and cargo-llvm-cov, zig in .tools/, a .venv
-#                     with requirements-dev.txt and the Python plugins' dependencies, and
-#                     the git hooks
+#                     with requirements-dev.txt and the Python plugins' dependencies, the
+#                     git hooks, and the local app's SDK when there is one (sdk-local)
 #   make              build every Rust plugin for Linux and Windows (all)
 #   make linux        build for Linux, against this machine's glibc
 #   make linux-portable  build for Linux against glibc GLIBC, like the released files (one
@@ -34,6 +34,10 @@
 #   make hooks        install the git hook of .pre-commit-config.yaml (pre-commit; again
 #                     after moving the clone, as the hook names the .venv's Python)
 #   make pre-commit   run the commit hooks on every file, not only the staged ones
+#   make sdk-local    build against the plugin SDK of a local app checkout (SDK_PATH,
+#                     ../artwork-creator-app/plugin-sdk) instead of GitHub's, for this
+#                     clone only (.cargo/config.toml); CI always takes GitHub's
+#   make sdk-github   back to the SDK from GitHub
 #   make tag PLUGIN=halftone MSG="Line screen added"
 #                     tag the plugin's current version for release (pushing it releases)
 #   make clean        remove build outputs
@@ -69,6 +73,7 @@ PY_PLUGIN_TESTS := $(wildcard plugins/*/test_*.py)
 PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
+.PHONY: sdk-local sdk-github
 .PHONY: all install install-rust install-zig install-zigbuild install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint hooks pre-commit fmt clippy tag clean
 
 all: linux windows
@@ -76,6 +81,9 @@ all: linux windows
 # Safe to run again: each step skips or updates what's already there.
 install: install-rust install-zig install-python
 	@if [ -d .git ]; then .venv/bin/python -m pre_commit install; fi
+	@# The local app's SDK when there is one (and none was chosen yet): see sdk-local.
+	@if [ -f $(SDK_PATH)/Cargo.toml ] && [ ! -f .cargo/config.toml ]; then $(MAKE) --no-print-directory sdk-local; \
+	  elif [ ! -f .cargo/config.toml ]; then echo "note: no app checkout in $(SDK_PATH): building against the SDK from GitHub"; fi
 	@command -v x86_64-w64-mingw32-gcc >/dev/null || \
 	  echo "note: MinGW not found; the Windows build (make windows, dist) needs it: sudo apt install gcc-mingw-w64-x86-64"
 
@@ -190,6 +198,25 @@ lint:
 	$(RUFF) check .
 	$(RUFF) format --check .
 	$(MYPY)
+
+# The plugin SDK of a local app checkout in place of the one from GitHub, through a [patch]
+# in .cargo/config.toml, which git ignores: the Cargo.toml files keep their git dependency
+# for CI. Cargo.lock then names the local SDK; the commit hook refuses it (check-lock).
+SDK_PATH ?= ../artwork-creator-app/plugin-sdk
+SDK_REPO := https://github.com/bzhmaddog/artwork-creator-app
+
+sdk-local:
+	@test -f $(SDK_PATH)/Cargo.toml || { echo "no plugin SDK in $(SDK_PATH): set SDK_PATH"; exit 1; }
+	@mkdir -p .cargo
+	@printf '# Written by make sdk-local, removed by make sdk-github.\n[patch."%s"]\n%s = { path = "%s" }\n' \
+	  '$(SDK_REPO)' artwork-plugin-sdk "$$(cd $(SDK_PATH) && pwd)" > .cargo/config.toml
+	$(CARGO) metadata --offline --format-version 1 > /dev/null
+	@echo "Building against $$(cd $(SDK_PATH) && pwd); make sdk-github to go back."
+
+sdk-github:
+	rm -f .cargo/config.toml
+	$(CARGO) metadata --format-version 1 > /dev/null
+	@echo "Building against the SDK from GitHub, as CI does."
 
 hooks:
 	$(PYTHON) -m pre_commit install

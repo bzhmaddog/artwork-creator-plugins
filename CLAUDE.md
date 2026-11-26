@@ -11,6 +11,9 @@ docs/publishing.md describe everything in detail; the rules that matter most:
 - **A new Rust plugin** goes in `members` of the top `Cargo.toml` (no glob: CI checks
   none is missing) and takes the SDK from the app's repository at a release tag. Moving to
   a newer tag: change it, `cargo update -p artwork-plugin-sdk@<old version>`, `make check`.
+  Never a `path` dependency (CI has only this repository): `make sdk-local` builds against
+  the local app's SDK for this clone only, `make sdk-github` goes back; don't commit
+  `Cargo.lock` meanwhile.
 - **`engines`**: Cargo-style requirements, prefer `>=` alone (no upper bound). `sdk` is
   required for Python plugins (the SDK that added the newest thing used); a Python plugin
   for an SDK newer than 0.3.0 also needs `app`. `make validate` checks this.

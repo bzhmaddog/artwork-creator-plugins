@@ -644,6 +644,15 @@ class ValidateTest(RepoTestCase):
         self.add_rust("other", member=False)
         self.assert_problem("plugins/other is not in the workspace members")
 
+    def test_sdk_by_path(self):
+        cargo = self.root / "plugins" / "rusty" / "Cargo.toml"
+        base = cargo.read_text(encoding="utf-8")
+        cargo.write_text(base + '\n[dependencies]\nartwork-plugin-sdk = { path = "../sdk" }\n', encoding="utf-8")
+        self.assert_problem("plugins/rusty/Cargo.toml: artwork-plugin-sdk must come from the app's repository")
+        git = '{ git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.19.0" }'
+        cargo.write_text(base + f"\n[dependencies]\nartwork-plugin-sdk = {git}\n", encoding="utf-8")
+        self.assertEqual(self.problems(), [])
+
     def test_format(self):
         self.write("plugins.json", json.dumps({"format": 2, "plugins": []}))
         out = io.StringIO()
@@ -690,6 +699,39 @@ class ValidateTest(RepoTestCase):
             release_version("demo", "1.2.0", compatible_from="1.0.0"),
         ]
         self.assert_problem("demo 1.2.0: compatible_from 1.0.0 is older than 1.1.0")
+
+
+GIT_SDK = 'source = "git+https://github.com/bzhmaddog/artwork-creator-app?tag=v0.19.0#f83dd09"\n'
+
+
+def lock(*sources):
+    """A Cargo.lock with an SDK package for each of `sources` (its source line, or none)."""
+    text = 'version = 4\n\n[[package]]\nname = "serde"\nversion = "1.0.0"\n'
+    text += 'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+    for s in sources:
+        text += f'\n[[package]]\nname = "artwork-plugin-sdk"\nversion = "0.5.0"\n{s}'
+    return text
+
+
+class CheckLockTest(RepoTestCase):
+    def test_sdk_from_github(self):
+        self.assertEqual(pi.lock_errors(lock(GIT_SDK)), [])
+        self.assertEqual(pi.lock_errors(lock()), [], "no SDK at all")
+
+    def test_local_sdk(self):
+        # As make sdk-local leaves it: a patched path package has no source.
+        problems = pi.lock_errors(lock(GIT_SDK, ""))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("artwork-plugin-sdk 0.5.0 is not from GitHub", problems[0])
+
+    def test_command(self):
+        self.write("Cargo.lock", lock(GIT_SDK))
+        quiet(pi.cmd_check_lock, args(file=str(self.root / "Cargo.lock")))
+        self.write("Cargo.lock", lock(""))
+        with self.assertRaises(pi.Error):
+            quiet(pi.cmd_check_lock, args(file=str(self.root / "Cargo.lock")))
+        with mock.patch.object(sys, "stdin", io.StringIO(lock(GIT_SDK))):
+            quiet(pi.cmd_check_lock, args(file="-"))
 
 
 class FakeRun:
