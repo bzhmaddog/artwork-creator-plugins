@@ -53,9 +53,9 @@ On GitHub, in the repository's settings:
    that adds the version to `plugins.json`. `main` itself can stay protected: the
    workflow never pushes to it. A ruleset must not cover `index/*` branches, or the
    workflow can't push them.
-3. *Pages*: **Source** set to **GitHub Actions**, for the Pages workflow. Then run it
-   once by hand (*Actions > Pages > Run workflow*): it starts by itself only when
-   `plugins.json` changes. Check that
+3. *Pages*: **Source** set to **GitHub Actions**, for the Pages workflow. It starts by
+   itself when `plugins.json` or the workflow changes on `main`; if Pages was enabled
+   after that, run it once by hand (*Actions > Pages > Run workflow*). Check that
    `https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json` serves the index.
 
 Locally: `cargo` and `python3` (3.11+). For `make windows`, the

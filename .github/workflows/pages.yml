@@ -4,9 +4,10 @@
 # its copy on main stays too: app versions before the move read it there.
 #
 # Runs on each push to main that changes plugins.json (an "Index <tag>" pull request
-# merged, or a version removed by hand), and by hand (Actions > Pages > Run workflow). The
-# index is validated first: one that doesn't pass isn't published, and the site keeps the
-# last one that did.
+# merged, or a version removed by hand) or this workflow, and by hand (Actions > Pages >
+# Run workflow). The whole repository is validated first, as CI does (every manifest and
+# plugins.json): if it doesn't pass, nothing is published and the site keeps the last index
+# that did.
 #
 # Needs Settings > Pages > Source set to "GitHub Actions" once.
 name: Pages
@@ -14,14 +15,14 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: [plugins.json]
+    paths: [plugins.json, .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
   contents: read
 
-# One deployment at a time, the newest last: a newer push waits rather than canceling one
-# in progress.
+# One deployment at a time: a run in progress is never canceled. Of the runs waiting
+# behind it, only the newest is kept, and it publishes the latest plugins.json.
 concurrency:
   group: pages
   cancel-in-progress: false
@@ -35,7 +36,6 @@ jobs:
         with:
           python-version: "3.12"
       - run: python3 scripts/plugin_index.py validate
-      - uses: actions/configure-pages@v5
       - name: Assemble the site
         run: |
           mkdir _site
