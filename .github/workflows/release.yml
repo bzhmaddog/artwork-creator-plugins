@@ -4,7 +4,8 @@
 #   git tag -a halftone-0.2.0 -m "Line screen added"   # the message becomes "changes"
 #   git push origin halftone-0.2.0
 #
-# The workflow builds the files (a Rust plugin: libX.so for Linux, linked against an old
+# The workflow first validates the repository at the tagged commit (make validate), then
+# builds the files (a Rust plugin: libX.so for Linux, linked against an old
 # glibc like the app, and X.dll for Windows; a Python plugin: its script), puts them on a
 # GitHub Release for that tag, downloads them back to check their SHA-256, then opens a
 # pull request (branch index/<tag>) adding the version to plugins.json, to merge by hand.
@@ -44,15 +45,14 @@ jobs:
       - uses: actions/checkout@v4
       - id: plugin
         run: python3 scripts/plugin_index.py resolve "$TAG" >> "$GITHUB_OUTPUT"
+      # Before anything is built or published: the manifests agree with the code (name,
+      # version, effects and generators) and with plugins.json, at the tagged commit.
+      - name: Validate
+        run: python3 scripts/plugin_index.py validate
       - name: Not published yet
         env:
           GH_TOKEN: ${{ github.token }}
-        run: |
-          draft=$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json isDraft --jq .isDraft 2>/dev/null || echo none)
-          if [ "$draft" = false ]; then
-            echo "::error::Release $TAG is already published; release a new version instead."
-            exit 1
-          fi
+        run: python3 scripts/plugin_index.py unpublished "$TAG"
 
   build:
     name: Build (${{ matrix.name }})
@@ -76,23 +76,13 @@ jobs:
       - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2
         with:
           key: release-${{ matrix.name }}
-      # Linked against the same old glibc as the app's Linux packages (GLIBC in the app's
-      # Makefile), with cargo-zigbuild and zig at the app's pinned versions (zig checked
-      # against its SHA-256); raise them together with the app.
+      # Linked against the same old glibc as the app's Linux packages, with the zig (checked
+      # against its SHA-256) and cargo-zigbuild pinned in the Makefile, like GLIBC.
       - name: Build (Linux)
         if: matrix.name == 'linux'
-        env:
-          GLIBC: "2.28"
-          ZIG_VERSION: 0.14.1
-          ZIG_SHA256: 24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
         run: |
-          zig="zig-x86_64-linux-$ZIG_VERSION"
-          curl --proto '=https' --tlsv1.2 -fsSL -o "$RUNNER_TEMP/zig.tar.xz" "https://ziglang.org/download/$ZIG_VERSION/$zig.tar.xz"
-          echo "$ZIG_SHA256  $RUNNER_TEMP/zig.tar.xz" | sha256sum -c -
-          tar -xJf "$RUNNER_TEMP/zig.tar.xz" -C "$RUNNER_TEMP"
-          export PATH="$RUNNER_TEMP/$zig:$PATH"
-          cargo install cargo-zigbuild --version 0.24.1 --locked
-          cargo zigbuild --release --locked -p "$PACKAGE" --target "x86_64-unknown-linux-gnu.$GLIBC"
+          make install-zig install-zigbuild
+          make linux-portable PACKAGE="$PACKAGE"
           mkdir -p dist
           cp "target/x86_64-unknown-linux-gnu/release/lib$LIB.so" dist/
       - name: Build (Windows)
@@ -144,17 +134,9 @@ jobs:
             --base-url "https://github.com/$GITHUB_REPOSITORY/releases/download/$TAG" \
             --out "$RUNNER_TEMP/entry.json" --notes "$RUNNER_TEMP/notes.md"
           cat "$RUNNER_TEMP/entry.json"
-      # Files go on a draft, which is published once they are all there: with release
-      # immutability on, a published release takes no more files.
+      # On a draft first, published once the files are all there (see cmd_publish).
       - name: Release
-        run: |
-          if [ "$(gh release view "$TAG" --json isDraft --jq .isDraft 2>/dev/null)" = true ]; then
-            gh release delete "$TAG" --yes   # a draft left by a failed run; the tag stays
-          fi
-          gh release create "$TAG" --draft --verify-tag --latest=false \
-            --title "$TITLE" --notes-file "$RUNNER_TEMP/notes.md"
-          gh release upload "$TAG" dist/*
-          gh release edit "$TAG" --draft=false --latest=false
+        run: python3 scripts/plugin_index.py publish "$TAG" --notes "$RUNNER_TEMP/notes.md" --title "$TITLE" dist/*
       - name: Verify downloads
         run: python3 scripts/plugin_index.py verify "$RUNNER_TEMP/entry.json"
       - uses: actions/upload-artifact@v4
@@ -189,29 +171,9 @@ jobs:
         with:
           name: index-entry
           path: ${{ runner.temp }}
-      - name: Commit
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git switch -c "$HEAD_BRANCH"
-          python3 scripts/plugin_index.py merge "$RUNNER_TEMP/entry.json"
-          python3 scripts/plugin_index.py validate
-          git commit -am "Index $TAG"
-          # A re-run replaces the branch left by an earlier one.
-          git push --force origin "HEAD:refs/heads/$HEAD_BRANCH"
+      # Merged, validated and committed on index/<tag>, force-pushed, and a pull request for it
+      # unless one is open (see cmd_pull_request).
       - name: Pull request
         run: |
-          if [ -n "$(gh pr list --head "$HEAD_BRANCH" --state open --json number --jq '.[].number')" ]; then
-            echo "A pull request for $HEAD_BRANCH is already open; its branch was updated."
-            exit 0
-          fi
-          {
-            echo "Adds release [$TAG](https://github.com/$GITHUB_REPOSITORY/releases/tag/$TAG) to plugins.json."
-            echo
-            echo '```json'
-            cat "$RUNNER_TEMP/entry.json"
-            echo
-            echo '```'
-          } > "$RUNNER_TEMP/body.md"
-          gh pr create --base "$BRANCH" --head "$HEAD_BRANCH" \
-            --title "Index $TAG" --body-file "$RUNNER_TEMP/body.md"
+          python3 scripts/plugin_index.py pull-request "$TAG" "$RUNNER_TEMP/entry.json" \
+            --base "$BRANCH" --branch "$HEAD_BRANCH" --repo "$GITHUB_REPOSITORY"

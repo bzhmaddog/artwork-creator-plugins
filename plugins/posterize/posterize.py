@@ -63,4 +63,4 @@ class Bands(Generator):
         image.pixels[:] = out
 
 
-plugin = Plugin("Python example", "1.0", effects=[Posterize()], generators=[Bands()])
+plugin = Plugin("Posterize", "1.0.1", effects=[Posterize()], generators=[Bands()])

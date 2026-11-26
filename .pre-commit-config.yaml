@@ -1,10 +1,12 @@
 # Git hooks, run by pre-commit (https://pre-commit.com), from requirements-dev.txt:
-#   .venv/bin/pre-commit install       # once per clone: installs the pre-commit and pre-push hooks
-#   .venv/bin/pre-commit run --all-files
-# On commit: file hygiene, ruff (lint, with fixes, and format), mypy, cargo fmt and the
-# manifest/index validation. On push: the Python and Rust tests. Keep the ruff and mypy
-# revs in step with requirements-dev.in.
-default_install_hook_types: [pre-commit, pre-push]
+#   make hooks                         # once per clone (or after moving it): installs the hook
+#   make pre-commit                    # every hook on every file
+# On commit: file hygiene, ruff (lint, with fixes, and format), mypy, cargo fmt, the
+# manifest/index validation, and the Python and Rust tests under coverage (make coverage):
+# fails under fail_under in .coveragerc, or when less than 80% of the code changed since
+# main is covered, SonarQube Cloud's gate (scripts/new_code_coverage.py). Keep the ruff
+# and mypy revs in step with requirements-dev.in.
+default_install_hook_types: [pre-commit]
 default_stages: [pre-commit]
 
 repos:
@@ -50,17 +52,12 @@ repos:
         language: system
         files: ^(plugins/|plugins\.json$|Cargo\.toml$|scripts/plugin_index\.py$)
         pass_filenames: false
-      - id: python-tests
-        name: Python tests
-        entry: python3 -m unittest discover -s tests -t .
+      # The tests, Python and Rust together: the gate on new code needs both reports up to
+      # date. A plugin's tests also run when its manifest changes (tests/test_plugins.py
+      # reads plugin.json).
+      - id: coverage
+        name: tests with coverage, 80% of new code
+        entry: make coverage
         language: system
-        files: ^(scripts|tests|plugins)/.*\.py$
+        files: ^((scripts|tests|plugins)/.*\.py|plugins/.*\.rs|plugins/.*/(plugin|Cargo)\.(json|toml)|Cargo\.(toml|lock)|\.coveragerc|sonar-project\.properties)$
         pass_filenames: false
-        stages: [pre-push]
-      - id: rust-tests
-        name: Rust tests
-        entry: cargo test --locked --workspace
-        language: system
-        files: ^(plugins/.*\.rs|Cargo\.(toml|lock)|plugins/.*/Cargo\.toml)$
-        pass_filenames: false
-        stages: [pre-push]

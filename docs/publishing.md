@@ -117,7 +117,9 @@ cargo-zigbuild. See the top of the `Makefile`.
    `effects` and `generators` list the names the code exports (an Effect's or Generator's
    `name`), so the plugin manager can show them before the plugin is installed. Leave out a
    list that would be empty, and update them in the version that adds or removes one:
-   `make validate` checks them against the code.
+   `make validate` checks them against the code. It also checks that the `name` and
+   (Python) `version` are the ones the code gives itself, in `Plugin("My effect", "1.0.0",
+   ...)` or `export_plugin!`: the app shows those once the plugin is loaded.
 
    A Rust plugin has `"kind": "library"` and no `version`, `script` or `engines.sdk`: its version is
    the one in its `Cargo.toml`, and its ABI version is read from the SDK when it's released.
@@ -137,8 +139,9 @@ cargo-zigbuild. See the top of the `Makefile`.
 2. **Bump the version**:
    - Rust: `version` in `plugins/<id>/Cargo.toml`, then `cargo update -p <id>` to update
      `Cargo.lock` (the builds and checks use `--locked` and fail until it matches).
-   - Python: `version` in `plugins/<id>/plugin.json`. You can also update the version
-     passed to `Plugin(...)` in the script to match.
+   - Python: `version` in `plugins/<id>/plugin.json`, and the version passed to
+     `Plugin(...)` in the script, which the app shows once the plugin is loaded: they must
+     match (`make validate` fails otherwise).
 
    Raise `engines.sdk` (Python) if the new version uses something a newer SDK added, such
    as `role=`, and set `engines.app` if it needs the app itself to behave differently (a
@@ -163,8 +166,11 @@ cargo-zigbuild. See the top of the `Makefile`.
    make tag PLUGIN=halftone MSG="Line screen added"
    ```
 
-   This runs the workflow's first check locally (the version isn't released yet), then
-   creates the annotated tag `halftone-0.2.0`. Without make:
+   This runs the workflow's first checks locally (`make validate`, and that the version
+   isn't released yet), then creates the annotated tag `halftone-0.2.0`. The workflow
+   validates again at the tagged commit before it builds or publishes anything, so a tag
+   whose manifest and code disagree (name, version, effects, generators) or whose details
+   differ from `plugins.json` publishes nothing. Without make:
    `git tag -a halftone-0.2.0 -m "Line screen added"`.
 5. **Push the tag**. This starts the release:
 

@@ -16,11 +16,15 @@ docs/publishing.md describe everything in detail; the rules that matter most:
   for an SDK newer than 0.3.0 also needs `app`. `make validate` checks this.
 - **`compatible_from`**: set it to the new version only in a release that breaks saved
   settings or documents.
-- **`effects` / `generators`** in the manifest must match the `name`s in the code.
+- **`effects` / `generators`** in the manifest must match the `name`s in the code; its
+  `name` and `version` must match the code's `Plugin(name, version, ...)` (Python) or
+  `export_plugin!` (Rust: `version: env!("CARGO_PKG_VERSION")`). Changing `name`,
+  `description` or the other details copied into the index takes a version bump and a release.
 - **Python plugins**: dependencies in the script's own PEP 723 block; tests next to the
   script (`plugins/<id>/test_*.py`), every Python plugin must have some. The tests in
   `tests/` use only the standard library.
-- **Releasing**: bump the version, commit, push, then `make tag PLUGIN=<id> MSG="..."` and
+- **Releasing**: bump the version, commit, push, then `make tag PLUGIN=<id> MSG="..."` (it
+  runs `make validate` first, as the Release workflow does before building) and
   push the tag (ask before pushing). The workflow opens an "Index <id>-<version>" PR.
 - **Trying before a release**: `make serve`, then add
   `http://127.0.0.1:8765/plugins.json` in the app's plugin manager.

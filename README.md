@@ -12,12 +12,12 @@ Each plugin is a folder of `plugins/` named after its id, with a `plugin.json` m
 
 | Field | |
 |---|---|
-| `id`, `name`, `description`, `author`, `homepage`, `license` | shown in the plugin manager |
+| `id`, `name`, `description`, `author`, `homepage`, `license` | shown in the plugin manager, copied into the index by each release. `name` is also the one the code gives (`Plugin(name, ...)` or `export_plugin!`'s `name`), which the app shows once the plugin is loaded: checked to match. Changing one of these takes a new version, as the index only gets them with a release (`make validate` fails when they differ from the index at the released version) |
 | `kind` | `library` (a Rust crate, built as `.so` and `.dll`) or `python` (a script) |
 | `engines` | what the plugin needs of the app, as version requirements in Cargo's syntax, as npm's and VS Code's `engines`: `{"app": ">=0.17.0", "sdk": ">=0.4.0"}`. Operators `>=`, `>`, `<=`, `<`, `=`, joined by commas. `sdk`: Python only, required, at least the SDK that added the newest thing it uses (a library's is its ABI version). `app`: optional, for a plugin that relies on the app's own behavior (a fix it needs); a Python plugin for an SDK newer than 0.3.0 needs it too, from the app release that ships that SDK, as apps up to 0.16 don't read `engines` but only the `min_app` the release writes from it (`make validate` says so). Prefer `>=` alone: an upper bound hides the plugin from later apps that would run it |
 | `compatible_from` | optional: oldest version of this plugin whose saved settings and documents this version still reads, so the app can warn before an update that breaks them. Every version in the index has it: left out of the manifest, it's carried over from the previous release (a first release gets its own version). Set it to the new version in a release that breaks with the past |
 | `effects`, `generators` | display names of what it provides (the `name` each one has in the code), copied into each version in the index; at least one of the two, and checked against the code |
-| `version` | Python only (a Rust plugin's version is the one in its `Cargo.toml`) |
+| `version` | Python only, and the same as the one passed to `Plugin(name, version, ...)` in the script (checked). A Rust plugin's version is the one in its `Cargo.toml`, which `export_plugin!` takes with `env!("CARGO_PKG_VERSION")` |
 | `script` | Python only: the file to publish |
 
 A Rust plugin is also listed in the `members` of the workspace in the top `Cargo.toml`, and takes the
@@ -70,10 +70,15 @@ Python code with ruff as well as the Rust code. CI runs it too.
 
 **Git hooks** (pre-commit, `.pre-commit-config.yaml`): `make install` installs them (or
 `make hooks` alone). Each commit then checks whitespace and line endings, JSON/TOML/YAML syntax, ruff
-(fixing what it can) and ruff format, mypy, `cargo fmt`, and the manifests and
-`plugins.json` (`plugin_index.py validate`); each push runs the Python and Rust tests. A
-hook that fixes files stops the commit: look at the changes, `git add` them and commit
-again. `make pre-commit` runs the commit hooks on every file (`STAGE=pre-push` for the push ones); `git commit --no-verify` skips them.
+(fixing what it can) and ruff format, mypy, `cargo fmt`, the manifests and
+`plugins.json` (`plugin_index.py validate`), and runs the Python and Rust tests under
+coverage (`make coverage`) when Python or Rust files changed: it fails under `fail_under`
+in `.coveragerc`, or when less than 80% of the code changed since `main` is covered, the
+SonarQube Cloud gate (`scripts/new_code_coverage.py`, which counts files git doesn't track
+yet too). A hook that fixes files stops the
+commit: look at the changes, `git add` them and commit again. `make pre-commit` runs the
+hooks on every file; `git commit --no-verify` skips them. Run `make hooks` again after
+moving the clone: the hook names the `.venv`'s Python by its path.
 
 **Setup**: with [rustup](https://rustup.rs) and Python 3.11+ installed, `make install` adds
 everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and

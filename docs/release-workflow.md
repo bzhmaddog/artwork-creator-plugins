@@ -25,9 +25,9 @@ git push origin halftone-0.2.0
                └──────────────┘
                        │
                        ▼
-               ┌──────────────┐   merge entry.json into plugins.json
-               │ index        │   validate, commit "Index <tag>", push to main
-               │ contents:    │   (retried on a concurrent push)
+               ┌──────────────┐   merge entry.json into plugins.json, validate,
+               │ index        │   commit "Index <tag>" on index/<tag>, push it,
+               │ contents:    │   open a pull request to main
                │   write      │
                └──────────────┘
 ```
@@ -57,10 +57,14 @@ Checks the tag and works out what to build.
      already in `plugins.json`;
    - prints `dir`, `kind`, `version`, `name`, and `package` + `lib` (Rust) or
      `script` (Python) as `key=value` lines into `$GITHUB_OUTPUT`.
-2. **Not published yet:** fails if a *published* (non-draft) release already exists for
-   the tag. A draft left by a failed run is fine; `publish` replaces it.
+2. **Validate:** `plugin_index.py validate`, the same checks as CI, at the tagged commit:
+   a manifest that disagrees with its code (name, version, effects, generators) or with
+   `plugins.json` stops the release before anything is built or published.
+3. **Not published yet:** `plugin_index.py unpublished "$TAG"` fails if a *published*
+   (non-draft) release already exists for the tag. A draft left by a failed run is fine;
+   `publish` replaces it.
 
-`make tag` runs the same `resolve` locally before creating the tag.
+`make tag` runs the same `validate` and `resolve` locally before creating the tag.
 
 ### 2. build (Rust plugins only)
 
@@ -68,11 +72,13 @@ Skipped for `kind: python`. A matrix of two runners, `fail-fast`:
 
 | Runner | Command | File |
 |---|---|---|
-| `ubuntu-latest` | `cargo zigbuild --release --locked` for `x86_64-unknown-linux-gnu.2.28` | `lib<lib>.so` |
+| `ubuntu-latest` | `make install-zig install-zigbuild`, then `make linux-portable PACKAGE=<package>` (`cargo zigbuild --release --locked` for `x86_64-unknown-linux-gnu.2.28`) | `lib<lib>.so` |
 | `windows-latest` | `cargo build --release --locked` | `<lib>.dll` |
 
 - The Linux build links against glibc 2.28 like the app's Linux packages, with zig and
-  cargo-zigbuild pinned to the app's versions; zig's download is checked against its SHA-256.
+  cargo-zigbuild at the app's versions, pinned once in the `Makefile` (`GLIBC`,
+  `ZIG_VERSION`, `ZIG_SHA256`, `CARGO_ZIGBUILD_VERSION`), which `make dist` uses too;
+  zig's download is checked against its SHA-256.
 - `--locked` makes the build fail if `Cargo.lock` doesn't match the manifests.
 - Each file is uploaded as an artifact `asset-linux` / `asset-windows` (kept 7 days).
 
@@ -92,8 +98,9 @@ Runs when `resolve` succeeded and `build` succeeded or was skipped.
      each platform, its URL under
      `https://github.com/<repo>/releases/download/<tag>/`;
    - `notes.md`: the release notes (the changes, and a table of files and SHA-256).
-5. **Release:** deletes a draft left by an earlier failed run, creates a *draft* release
-   for the tag (`--verify-tag`, not marked latest), uploads the files, then publishes it.
+5. **Release:** `plugin_index.py publish` deletes a draft left by an earlier failed run,
+   creates a *draft* release for the tag (`--verify-tag`, not marked latest), uploads the
+   files, then publishes it.
    Files go on a draft first because, with release immutability on, a published release
    takes no more files.
 6. **Verify downloads:** `plugin_index.py verify` downloads every URL in `entry.json`
@@ -105,9 +112,10 @@ Runs when `resolve` succeeded and `build` succeeded or was skipped.
 
 Opens a pull request adding the version to `plugins.json`, to be merged by hand: the
 default branch is protected, and the workflow never pushes to it. Runs when `publish`
-succeeded (an explicit condition: otherwise a skipped `build` would skip it too).
+succeeded (an explicit condition: otherwise a skipped `build` would skip it too). It checks
+out the default branch, then `plugin_index.py pull-request` does the rest:
 
-1. check out the default branch and create the branch `index/<tag>` from it;
+1. create the branch `index/<tag>` from it;
 2. `plugin_index.py merge entry.json`: adds the version to its plugin (creating the
    plugin if it's new), fills in `compatible_from` from the previous version when the
    manifest has none, keeps the versions newest first, updates `latest` and the plugin's
@@ -172,8 +180,11 @@ repository, every SHA-256 64 hex digits, every size a positive integer.
 | `resolve TAG` | `resolve` job, `make tag` | check the tag, print what to build |
 | `prepare TAG --assets --base-url --out [--notes]` | `publish` job | hash the files, write the entry and notes |
 | `verify ENTRY` | `publish` job | download each file of an entry, check size and SHA-256 |
-| `merge ENTRY` | `index` job, by hand | add an entry's version to `plugins.json` |
-| `validate` | `index` job, CI, `make validate` | check every manifest and `plugins.json` |
+| `unpublished TAG` | `resolve` job | fail if the tag's release is already published |
+| `publish TAG --notes --title FILE...` | `publish` job | draft release, upload the files, publish it (`gh`) |
+| `merge ENTRY` | `pull-request`, by hand | add an entry's version to `plugins.json` |
+| `pull-request TAG ENTRY --base --branch --repo` | `index` job | merge, validate, commit on its branch, push, open the pull request (`git`, `gh`) |
+| `validate` | `resolve` and `index` jobs, CI, `make validate`, `make tag` | check every manifest and `plugins.json` |
 | `version PLUGIN` | `make tag` | print a plugin's version |
 | `dependencies` | CI, `make install-python` | print the Python plugins' dependencies, for `pip install` |
 
