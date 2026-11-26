@@ -67,8 +67,33 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
-      "latest": "1.0.1",
+      "latest": "1.1.0",
       "versions": [
+        {
+          "version": "1.1.0",
+          "released": "2026-11-26",
+          "abi": 2,
+          "effects": [
+            "Halftone"
+          ],
+          "generators": [
+            "Dot grid"
+          ],
+          "changes": "Ink and paper colors grouped under Colors (SDK 0.5.0)",
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.1.0/libhalftone.so",
+              "sha256": "7f5f24d13556bfb7c585b74a015197d3fafd0f3b0bdca35d954e2cab7b25c6a6",
+              "size": 527640
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.1.0/halftone.dll",
+              "sha256": "b75ffbb5a8fd5189daad5533006e51518283d8af43ef803ebf65601f9bd01bda",
+              "size": 282624
+            }
+          },
+          "compatible_from": "0.1.0"
+        },
         {
           "version": "1.0.1",
           "released": "2026-11-24",
