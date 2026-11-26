@@ -56,7 +56,9 @@ Thumbs.db
 desktop.ini
 *:Zone.Identifier
 
-# Local environment and Claude Code settings that are personal to a machine
+# Local environment and Claude Code settings that are personal to a machine; .cargo/config.toml
+# is make sdk-local's
+/.cargo/config.toml
 .local
 .env
 .env.*

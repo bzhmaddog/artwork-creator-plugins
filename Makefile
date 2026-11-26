@@ -1,5 +1,6 @@
 # Builds and checks the plugins. Release builds of the Rust plugins go to target/<target>/release,
-# like the app's Makefile; the Release workflow (.github/workflows/release.yml) does its own builds.
+# like the app's Makefile. The Release workflow (.github/workflows/release.yml) builds a plugin's
+# Linux file with make install-zig install-zigbuild and make linux-portable PACKAGE=<package>.
 #
 # Needs rustup (https://rustup.rs) and python3 (3.11+); make install adds the rest, except
 # MinGW for the Windows build, a system package (sudo apt install gcc-mingw-w64-x86-64).
@@ -7,11 +8,12 @@
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
 #                     components, cargo-zigbuild and cargo-llvm-cov, zig in .tools/, a .venv
-#                     with requirements-dev.txt and the Python plugins' dependencies, and
-#                     the git hooks
+#                     with requirements-dev.txt and the Python plugins' dependencies, the
+#                     git hooks, and the local app's SDK when there is one (sdk-local)
 #   make              build every Rust plugin for Linux and Windows (all)
 #   make linux        build for Linux, against this machine's glibc
-#   make linux-portable  build for Linux against glibc GLIBC, like the released files
+#   make linux-portable  build for Linux against glibc GLIBC, like the released files (one
+#                     plugin with PACKAGE=<its Cargo package>, as the Release workflow does)
 #   make windows      build for Windows (cross-compiled with MinGW)
 #   make dist         the files a release publishes, for every plugin, in dist/
 #   make serve        serve the working tree's plugins as a repository at
@@ -22,14 +24,20 @@
 #                     plugins, in tests/)
 #   make coverage     the tests' coverage, as reports in coverage/: Python (coverage.py,
 #                     requirements-dev.txt; fails under fail_under in .coveragerc) and
-#                     Rust (cargo-llvm-cov: cargo install cargo-llvm-cov)
+#                     Rust (cargo-llvm-cov: cargo install cargo-llvm-cov), then fails when
+#                     less than MIN % (80) of the code changed since main is covered, as
+#                     SonarQube Cloud's gate (make coverage-new, on the reports alone)
 #   make lint         lint and type-check the Python code (ruff, ruff format --check, mypy;
 #                     requirements-dev.txt)
 #   make fmt          format the Rust and the Python code
 #   make lock         regenerate requirements-dev.txt (hash-locked) from requirements-dev.in
-#   make hooks        install the git hooks of .pre-commit-config.yaml (pre-commit, pre-push)
+#   make hooks        install the git hook of .pre-commit-config.yaml (pre-commit; again
+#                     after moving the clone, as the hook names the .venv's Python)
 #   make pre-commit   run the commit hooks on every file, not only the staged ones
-#                     (STAGE=pre-push: the push hooks, the tests)
+#   make sdk-local    build against the plugin SDK of a local app checkout (SDK_PATH,
+#                     ../artwork-creator-app/plugin-sdk) instead of GitHub's, for this
+#                     clone only (.cargo/config.toml); CI always takes GitHub's
+#   make sdk-github   back to the SDK from GitHub
 #   make tag PLUGIN=halftone MSG="Line screen added"
 #                     tag the plugin's current version for release (pushing it releases)
 #   make clean        remove build outputs
@@ -50,8 +58,8 @@ MYPY    ?= $(PYTHON) -m mypy
 # and as the Release workflow.
 GLIBC   := 2.28
 
-# Tool versions make install sets up. zig and cargo-zigbuild are the Release workflow's
-# (.github/workflows/release.yml), cargo-llvm-cov the CI's: raise them together.
+# Tool versions make install sets up. The Release workflow takes zig and cargo-zigbuild from
+# here too (make install-zig install-zigbuild); cargo-llvm-cov is the CI's: raise them together.
 ZIG_VERSION            := 0.14.1
 ZIG_SHA256             := 24aeeec8af16c381934a6cd7d95c807a8cb2cf7df9fa40d359aa884195c4716c
 ZIG_DIR                := .tools/zig-x86_64-linux-$(ZIG_VERSION)
@@ -65,21 +73,28 @@ PY_PLUGIN_TESTS := $(wildcard plugins/*/test_*.py)
 PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
-.PHONY: all install install-rust install-zig install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust lint hooks pre-commit fmt clippy tag clean
+.PHONY: sdk-local sdk-github
+.PHONY: all install install-rust install-zig install-zigbuild install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint hooks pre-commit fmt clippy tag clean
 
 all: linux windows
 
 # Safe to run again: each step skips or updates what's already there.
 install: install-rust install-zig install-python
 	@if [ -d .git ]; then .venv/bin/python -m pre_commit install; fi
+	@# The local app's SDK when there is one (and none was chosen yet): see sdk-local.
+	@if [ -f $(SDK_PATH)/Cargo.toml ] && [ ! -f .cargo/config.toml ]; then $(MAKE) --no-print-directory sdk-local; \
+	  elif [ ! -f .cargo/config.toml ]; then echo "note: no app checkout in $(SDK_PATH): building against the SDK from GitHub"; fi
 	@command -v x86_64-w64-mingw32-gcc >/dev/null || \
 	  echo "note: MinGW not found; the Windows build (make windows, dist) needs it: sudo apt install gcc-mingw-w64-x86-64"
 
-install-rust:
+install-rust: install-zigbuild
 	@command -v rustup >/dev/null || { echo "rustup is needed first: https://rustup.rs"; exit 1; }
 	rustup component add rustfmt clippy llvm-tools-preview
 	rustup target add $(LINUX) $(WINDOWS)
-	$(CARGO) install --locked cargo-zigbuild@$(CARGO_ZIGBUILD_VERSION) cargo-llvm-cov@$(CARGO_LLVM_COV_VERSION)
+	$(CARGO) install --locked cargo-llvm-cov@$(CARGO_LLVM_COV_VERSION)
+
+install-zigbuild:
+	$(CARGO) install --locked cargo-zigbuild@$(CARGO_ZIGBUILD_VERSION)
 
 # zig for make linux-portable, checked against its SHA-256 like in the Release workflow.
 install-zig:
@@ -109,9 +124,10 @@ lock:
 linux:
 	$(CARGO) build --release --locked --workspace --target $(LINUX)
 
-# With the zig of make install, when it's there.
+# With the zig of make install, when it's there. Every plugin, or the Cargo package PACKAGE.
 linux-portable:
-	PATH="$(CURDIR)/$(ZIG_DIR):$$PATH" $(CARGO) zigbuild --release --locked --workspace --target $(LINUX).$(GLIBC)
+	PATH="$(CURDIR)/$(ZIG_DIR):$$PATH" $(CARGO) zigbuild --release --locked \
+	  $(if $(PACKAGE),-p $(PACKAGE),--workspace) --target $(LINUX).$(GLIBC)
 
 windows:
 	$(CARGO) build --release --locked --workspace --target $(WINDOWS)
@@ -149,7 +165,7 @@ test-rust:
 test-python:
 	$(PYTHON) -m unittest discover -s tests -t .
 
-coverage: coverage-python coverage-rust
+coverage: coverage-python coverage-rust coverage-new
 
 # Settings in .coveragerc. The report comes last, so the reports are written even when
 # it fails on fail_under.
@@ -159,6 +175,7 @@ coverage-python:
 	$(COVERAGE) combine -q
 	$(COVERAGE) html
 	$(COVERAGE) xml
+	$(COVERAGE) lcov -q -o coverage/python.lcov
 	$(COVERAGE) report
 
 # coverage/rust.lcov for tools, coverage/html for people.
@@ -170,11 +187,36 @@ coverage-rust:
 	$(CARGO) llvm-cov report --html --output-dir coverage
 	$(CARGO) llvm-cov report --summary-only
 
+# The SonarQube Cloud gate on the reports of coverage-python and coverage-rust: at least MIN %
+# (80) of the lines changed since the branch left main covered (scripts/new_code_coverage.py).
+MIN ?= 80
+coverage-new:
+	$(PYTHON) scripts/new_code_coverage.py --min $(MIN)
+
 # Settings in ruff.toml and mypy.ini.
 lint:
 	$(RUFF) check .
 	$(RUFF) format --check .
 	$(MYPY)
+
+# The plugin SDK of a local app checkout in place of the one from GitHub, through a [patch]
+# in .cargo/config.toml, which git ignores: the Cargo.toml files keep their git dependency
+# for CI. Cargo.lock then names the local SDK; the commit hook refuses it (check-lock).
+SDK_PATH ?= ../artwork-creator-app/plugin-sdk
+SDK_REPO := https://github.com/bzhmaddog/artwork-creator-app
+
+sdk-local:
+	@test -f $(SDK_PATH)/Cargo.toml || { echo "no plugin SDK in $(SDK_PATH): set SDK_PATH"; exit 1; }
+	@mkdir -p .cargo
+	@printf '# Written by make sdk-local, removed by make sdk-github.\n[patch."%s"]\n%s = { path = "%s" }\n' \
+	  '$(SDK_REPO)' artwork-plugin-sdk "$$(cd $(SDK_PATH) && pwd)" > .cargo/config.toml
+	$(CARGO) metadata --offline --format-version 1 > /dev/null
+	@echo "Building against $$(cd $(SDK_PATH) && pwd); make sdk-github to go back."
+
+sdk-github:
+	rm -f .cargo/config.toml
+	$(CARGO) metadata --format-version 1 > /dev/null
+	@echo "Building against the SDK from GitHub, as CI does."
 
 hooks:
 	$(PYTHON) -m pre_commit install
@@ -195,6 +237,7 @@ clippy:
 tag:
 	@test -n "$(PLUGIN)" || { echo 'usage: make tag PLUGIN=<folder in plugins/> MSG="<changes>"'; exit 1; }
 	@test -n "$(MSG)" || { echo 'MSG="<changes>" is needed: it becomes the version'"'"'s changes'; exit 1; }
+	@$(INDEX) validate
 	@version=$$($(INDEX) version $(PLUGIN)) && tag="$(PLUGIN)-$$version" && \
 	  $(INDEX) resolve "$$tag" >/dev/null && \
 	  git tag -a "$$tag" -m "$(MSG)" && \

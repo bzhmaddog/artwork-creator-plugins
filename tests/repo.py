@@ -24,7 +24,7 @@ class Noise(Generator):
     id = "demo.noise"
     name = "Noise"
 
-plugin = Plugin("Demo", "1.0", effects=[Invert()], generators=[Noise()])
+plugin = Plugin("Demo", "1.0.0", effects=[Invert()], generators=[Noise()])
 """
 
 RS_SOURCE = """\

@@ -11,7 +11,7 @@ import unittest
 from typing import Any, ClassVar
 from unittest import mock
 
-from tests.repo import PY_SCRIPT, ROOT, RS_SOURCE, RepoTestCase, release_version
+from tests.repo import PY_SCRIPT, ROOT, RS_SOURCE, RepoTestCase, manifest, release_version
 from tests.repo import plugin_index as pi
 
 INDEX_SCRIPT = ROOT / "scripts" / "plugin_index.py"
@@ -161,6 +161,14 @@ class LoadPluginTest(RepoTestCase):
 
     def test_script_must_exist(self):
         self.assert_error(self.add_python(script=None), "script 'demo.py' not found")
+
+    def test_script_is_a_file_name_in_its_folder(self):
+        # A script outside the folder, even an existing one, is refused before it's read.
+        self.write("plugins/other.py", PY_SCRIPT)
+        folder = self.add_python()
+        for script in ("../other.py", "sub/demo.py", "/etc/passwd", "demo.txt", 3):
+            self.write("plugins/demo/plugin.json", json.dumps(manifest("demo", script=script)))
+            self.assert_error(folder, "must be the name of a .py file")
 
     def test_provides(self):
         self.assert_error(self.add_python(effects=None, generators=None), "effects or generators")
@@ -501,10 +509,9 @@ class VerifyTest(RepoTestCase):
 
 class MergeTest(RepoTestCase):
     def entry(self, id, version, **extra):
+        # The plugin's details as the release copies them from its manifest.
         e = {
-            "id": id,
-            "name": id.title(),
-            "kind": "python",
+            **{k: v for k, v in manifest(id).items() if k in pi.PLUGIN_FIELDS},
             "latest": version,
             "versions": [release_version(id, version, compatible_from=None, **extra)],
         }
@@ -560,7 +567,11 @@ class ValidateTest(RepoTestCase):
         self.add_python()
         self.add_rust()
         self.index: list[dict[str, Any]] = [
-            {"id": "demo", "latest": "1.0.0", "versions": [release_version("demo", "1.0.0")]}
+            {
+                **{k: v for k, v in manifest("demo").items() if k in pi.PLUGIN_FIELDS},
+                "latest": "1.0.0",
+                "versions": [release_version("demo", "1.0.0")],
+            }
         ]
 
     def problems(self):
@@ -589,6 +600,41 @@ class ValidateTest(RepoTestCase):
         self.add_python(effects=["Invert", "Sharpen"])
         self.assert_problem("plugin.json effects ['Invert', 'Sharpen'] don't match the code's ['Invert']")
 
+    def test_manifest_and_code_versions_disagree(self):
+        self.add_python(script=PY_SCRIPT.replace('"1.0.0"', '"1.0"'))
+        self.assert_problem("demo: demo.py has version '1.0', plugin.json has '1.0.0'")
+
+    def test_manifest_and_code_names_disagree(self):
+        self.add_python(script=PY_SCRIPT.replace('"Demo"', '"Python example"'))
+        self.assert_problem("demo: demo.py has name 'Python example', plugin.json has 'Demo'")
+        self.add_python()
+        self.add_rust(source=RS_SOURCE.replace('"Rusty"', '"Rust example"'))
+        self.assert_problem("rusty: export_plugin! has name 'Rust example', plugin.json has 'Rusty'")
+
+    def test_rust_literal_version_must_match_cargo(self):
+        self.add_rust(source=RS_SOURCE.replace('env!("CARGO_PKG_VERSION")', '"0.1.0"'))
+        self.assert_problem("rusty: export_plugin! has version '0.1.0', plugin.json has '0.2.0'")
+        self.add_rust(source=RS_SOURCE.replace('env!("CARGO_PKG_VERSION")', '"0.2.0"'))
+        self.assertEqual(self.problems(), [])
+
+    def test_code_identity(self):
+        folder = self.add_python(script=PY_SCRIPT.replace('Plugin("Demo", "1.0.0"', "Plugin('Demo', '2.1.0'"))
+        self.assertEqual(pi.code_identity(folder, pi.load_plugin(folder)), {"name": "Demo", "version": "2.1.0"})
+        rust = self.add_rust()
+        self.assertEqual(pi.code_identity(rust, pi.load_plugin(rust)), {"name": "Rusty", "version": None})
+        self.add_python(script=PY_SCRIPT.replace('"1.0.0"', "VERSION"))
+        self.assert_problem('no Plugin("name", "version", ...) with literal strings in demo.py')
+
+    def test_manifest_and_index_details_disagree(self):
+        entry = next(p for p in self.index if p["id"] == "demo")
+        entry["description"] = "An older description"
+        self.assert_problem("demo: plugin.json description 'The demo plugin' differs from plugins.json's")
+        # A newer version, not released yet, brings it.
+        self.add_python(version="1.1.0", script=PY_SCRIPT.replace('"1.0.0"', '"1.1.0"'))
+        self.assertEqual(self.problems(), [])
+        self.add_python(version="0.9.0", script=PY_SCRIPT.replace('"1.0.0"', '"0.9.0"'))
+        self.assert_problem("demo: plugin.json has version 0.9.0, older than the latest release 1.0.0")
+
     def test_folder_without_manifest(self):
         (self.root / "plugins" / "stray").mkdir()
         (self.root / "plugins" / ".hidden").mkdir()
@@ -597,6 +643,15 @@ class ValidateTest(RepoTestCase):
     def test_workspace_member_missing(self):
         self.add_rust("other", member=False)
         self.assert_problem("plugins/other is not in the workspace members")
+
+    def test_sdk_by_path(self):
+        cargo = self.root / "plugins" / "rusty" / "Cargo.toml"
+        base = cargo.read_text(encoding="utf-8")
+        cargo.write_text(base + '\n[dependencies]\nartwork-plugin-sdk = { path = "../sdk" }\n', encoding="utf-8")
+        self.assert_problem("plugins/rusty/Cargo.toml: artwork-plugin-sdk must come from the app's repository")
+        git = '{ git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.19.0" }'
+        cargo.write_text(base + f"\n[dependencies]\nartwork-plugin-sdk = {git}\n", encoding="utf-8")
+        self.assertEqual(self.problems(), [])
 
     def test_format(self):
         self.write("plugins.json", json.dumps({"format": 2, "plugins": []}))
@@ -644,6 +699,171 @@ class ValidateTest(RepoTestCase):
             release_version("demo", "1.2.0", compatible_from="1.0.0"),
         ]
         self.assert_problem("demo 1.2.0: compatible_from 1.0.0 is older than 1.1.0")
+
+
+GIT_SDK = 'source = "git+https://github.com/bzhmaddog/artwork-creator-app?tag=v0.19.0#f83dd09"\n'
+
+
+def lock(*sources):
+    """A Cargo.lock with an SDK package for each of `sources` (its source line, or none)."""
+    text = 'version = 4\n\n[[package]]\nname = "serde"\nversion = "1.0.0"\n'
+    text += 'source = "registry+https://github.com/rust-lang/crates.io-index"\n'
+    for s in sources:
+        text += f'\n[[package]]\nname = "artwork-plugin-sdk"\nversion = "0.5.0"\n{s}'
+    return text
+
+
+class CheckLockTest(RepoTestCase):
+    def test_sdk_from_github(self):
+        self.assertEqual(pi.lock_errors(lock(GIT_SDK)), [])
+        self.assertEqual(pi.lock_errors(lock()), [], "no SDK at all")
+
+    def test_local_sdk(self):
+        # As make sdk-local leaves it: a patched path package has no source.
+        problems = pi.lock_errors(lock(GIT_SDK, ""))
+        self.assertEqual(len(problems), 1, problems)
+        self.assertIn("artwork-plugin-sdk 0.5.0 is not from GitHub", problems[0])
+
+    def test_command(self):
+        self.write("Cargo.lock", lock(GIT_SDK))
+        quiet(pi.cmd_check_lock, args(file=str(self.root / "Cargo.lock")))
+        self.write("Cargo.lock", lock(""))
+        with self.assertRaises(pi.Error):
+            quiet(pi.cmd_check_lock, args(file=str(self.root / "Cargo.lock")))
+        with mock.patch.object(sys, "stdin", io.StringIO(lock(GIT_SDK))):
+            quiet(pi.cmd_check_lock, args(file="-"))
+
+
+class FakeRun:
+    """Stands in for plugin_index.run: records each command, answering those starting with
+    a key of `answers` with its value (an Error raised)."""
+
+    def __init__(self, answers=None):
+        self.answers = answers or {}
+        self.calls = []
+
+    def __call__(self, *cmd, capture=False, check=True):
+        self.calls.append(cmd)
+        for start, answer in self.answers.items():
+            if cmd[: len(start)] == start:
+                if isinstance(answer, Exception):
+                    raise answer
+                return answer
+        return ""
+
+
+class RunTest(RepoTestCase):
+    def test_output_and_failure(self):
+        self.assertEqual(pi.run(sys.executable, "-c", "print(' hi ')", capture=True), "hi")
+        self.assertEqual(pi.run(sys.executable, "-c", "pass"), "")
+        # Not checked: the output, whatever the exit status.
+        self.assertEqual(pi.run(sys.executable, "-c", "print(1); exit(3)", capture=True, check=False), "1")
+        fail = "import sys; sys.stderr.write('bad tag'); sys.exit(2)"
+        with self.assertRaisesRegex(pi.Error, "failed \\(exit 2\\): bad tag"):
+            pi.run(sys.executable, "-c", fail, capture=True)
+
+
+class PublishTest(RepoTestCase):
+    VIEW = ("gh", "release", "view")
+
+    FILES = ("dist/a.so", "dist/b.dll")
+
+    def publish(self, fake):
+        a = args(tag="demo-1.0.0", files=list(self.FILES), notes="notes.md", title="Demo 1.0.0")
+        with mock.patch.object(pi, "run", fake):
+            out = quiet(pi.cmd_publish, a)
+        self.assertIn("published demo-1.0.0 with 2 file(s)", out)
+        return fake.calls
+
+    def test_draft_then_files_then_published(self):
+        calls = self.publish(FakeRun({self.VIEW: ""}))
+        self.assertEqual(
+            calls[1:],
+            [
+                ("gh", "release", "create", "demo-1.0.0", "--draft", "--verify-tag", "--latest=false",
+                 "--title", "Demo 1.0.0", "--notes-file", "notes.md"),
+                ("gh", "release", "upload", "demo-1.0.0", "dist/a.so", "dist/b.dll"),
+                ("gh", "release", "edit", "demo-1.0.0", "--draft=false", "--latest=false"),
+            ],
+        )  # fmt: skip
+
+    def test_a_draft_left_by_a_failed_run_is_replaced(self):
+        calls = self.publish(FakeRun({self.VIEW: "true"}))
+        self.assertEqual(calls[1], ("gh", "release", "delete", "demo-1.0.0", "--yes"))
+        self.assertEqual(calls[2][:3], ("gh", "release", "create"))
+
+
+class UnpublishedTest(unittest.TestCase):
+    def check(self, answer):
+        with mock.patch.object(pi, "run", FakeRun({("gh", "release", "view"): answer})):
+            pi.cmd_unpublished(args(tag="demo-1.0.0"))
+
+    def test_none_or_a_draft_is_fine(self):
+        self.check("")
+        self.check("true")
+
+    def test_published(self):
+        with self.assertRaisesRegex(pi.Error, "Release demo-1.0.0 is already published"):
+            self.check("false")
+
+
+class PullRequestTest(RepoTestCase):
+    LIST = ("gh", "pr", "list")
+
+    def setUp(self):
+        super().setUp()
+        self.add_python()
+        e = {
+            **{k: v for k, v in manifest("demo").items() if k in pi.PLUGIN_FIELDS},
+            "latest": "1.0.0",
+            "versions": [release_version("demo", "1.0.0", compatible_from=None)],
+        }
+        self.entry = self.write("tmp/entry.json", json.dumps(e))
+
+    def pull_request(self, fake):
+        a = args(tag="demo-1.0.0", entry=str(self.entry), base="main", branch="index/demo-1.0.0", repo="o/r")
+        with mock.patch.object(pi, "run", fake):
+            out = quiet(pi.cmd_pull_request, a)
+        return fake.calls, out
+
+    def test_commits_the_merged_index_and_opens_a_pull_request(self):
+        calls, _ = self.pull_request(FakeRun({self.LIST: ""}))
+        self.assertEqual(calls[2], ("git", "switch", "-c", "index/demo-1.0.0"))
+        self.assertEqual(calls[3], ("git", "commit", "-am", "Index demo-1.0.0"))
+        self.assertEqual(calls[4], ("git", "push", "--force", "origin", "HEAD:refs/heads/index/demo-1.0.0"))
+        *create, body = calls[-1]
+        self.assertEqual(
+            tuple(create),
+            ("gh", "pr", "create", "--base", "main", "--head", "index/demo-1.0.0",
+             "--title", "Index demo-1.0.0", "--body"),
+        )  # fmt: skip
+        self.assertIn("[demo-1.0.0](https://github.com/o/r/releases/tag/demo-1.0.0)", body)
+        self.assertIn('"id": "demo"', body)
+        # No file written beside the entry.
+        self.assertEqual(sorted(p.name for p in self.entry.parent.iterdir()), ["entry.json"])
+        # Merged before the commit.
+        [p] = self.read_index()["plugins"]
+        self.assertEqual(p["latest"], "1.0.0")
+
+    def test_an_open_pull_request_is_only_updated(self):
+        calls, out = self.pull_request(FakeRun({self.LIST: "7"}))
+        self.assertEqual(calls[-1][:3], self.LIST)
+        self.assertIn("already open (#7)", out)
+
+    def test_nothing_is_committed_when_the_index_is_invalid(self):
+        self.add_python(script=PY_SCRIPT.replace('"1.0.0"', '"1.0"'))
+        fake = FakeRun()
+        with self.assertRaises(pi.Error):
+            self.pull_request(fake)
+        self.assertFalse(any(c[:2] == ("git", "commit") for c in fake.calls))
+
+    def test_pr_body(self):
+        body = pi.pr_body("demo-1.0.0", "o/r", {"id": "demo"})
+        self.assertEqual(
+            body,
+            "Adds release [demo-1.0.0](https://github.com/o/r/releases/tag/demo-1.0.0) to plugins.json.\n\n"
+            '```json\n{\n  "id": "demo"\n}\n```\n',
+        )
 
 
 class CommandLineTest(unittest.TestCase):

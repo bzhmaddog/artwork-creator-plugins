@@ -29,4 +29,4 @@ class SwapChannels(Effect):
         px[a::4], px[b::4] = px[b::4], px[a::4]
 
 
-plugin = Plugin("Swap channels", "1.0", effects=[SwapChannels()])
+plugin = Plugin("Swap channels", "1.0.0", effects=[SwapChannels()])

@@ -12,8 +12,14 @@ A release is a tag <folder>-<version>; the Release workflow uses these commands:
                        key=value lines for $GITHUB_OUTPUT
   prepare TAG ...      hash the built files and write the plugin's index entry
   verify ENTRY         download every file of an entry and check its size and SHA-256
+  unpublished TAG      fail if the tag's GitHub Release is already published
+  publish TAG ... FILE...  put the built files on the tag's GitHub Release (gh), then publish it
   merge ENTRY          add an entry's version to plugins.json
+  pull-request TAG ENTRY ...  merge, validate and commit the entry on its own branch, push
+                       it and open a pull request for it (git, gh)
   validate             check plugins.json and every manifest (CI)
+  check-lock [FILE]    fail if Cargo.lock (FILE, - for stdin) takes the plugin SDK from
+                       anywhere but GitHub, as after make sdk-local (the commit hook)
   version PLUGIN       print a plugin's version (make tag)
   dependencies         print the Python plugins' dependencies, one per line (pip install)
 
@@ -55,6 +61,8 @@ PLUGIN_FIELDS = ("id", "name", "description", "author", "homepage", "license", "
 VERSION_FIELDS = ("engines", "compatible_from", "effects", "generators")
 # What a plugin provides, as lists of display names (the names the code returns).
 PROVIDES = ("effects", "generators")
+# The plugin SDK's crate, which the Rust plugins take from the app's repository.
+SDK_PACKAGE = "artwork-plugin-sdk"
 PEP723_RE = re.compile(r"(?m)^# /// script\s*$\s(?P<content>(^#(| .*)$\s)+)^# ///$")
 
 
@@ -161,6 +169,7 @@ def provides_errors(d):
 
 PY_CLASS_RE = re.compile(r"(?m)^class\s+\w+\s*\(\s*(Effect|Generator)\s*\)\s*:(?P<body>(?:\n(?:[ \t].*|[ \t]*))*)")
 PY_NAME_RE = re.compile(r"(?m)^[ \t]+name\s*=\s*(\"[^\"\n]*\"|'[^'\n]*')")
+PY_PLUGIN_RE = re.compile(r"\bPlugin\(\s*(\"[^\"\n]*\"|'[^'\n]*')\s*,\s*(\"[^\"\n]*\"|'[^'\n]*')")
 RS_EXPORT_RE = re.compile(r"export_plugin!\s*\((?P<body>.*?)\)\s*;", re.S)
 RS_NAME_RE = re.compile(r"fn\s+name\s*\(\s*&\s*self\s*\)\s*->\s*&\s*(?:'static\s+)?str\s*\{\s*\"([^\"\\]*)\"\s*\}")
 
@@ -171,7 +180,7 @@ def code_provides(folder, m):
     type in export_plugin!'s effects and generators."""
     found: dict[str, list[str]] = {k: [] for k in PROVIDES}
     if m["kind"] == "python":
-        src = (folder / m["script"]).read_text(encoding="utf-8")
+        src = script_path(folder, m).read_text(encoding="utf-8")
         for c in PY_CLASS_RE.finditer(src):
             name = PY_NAME_RE.search(c["body"])
             if not name:
@@ -196,6 +205,62 @@ def code_provides(folder, m):
                 raise Error(f"{folder.name}: no literal fn name in impl {trait} for {t}")
             found[k].append(name[1])
     return found
+
+
+def code_identity(folder, m):
+    """The name and version a plugin's code gives itself, which the app shows once it is
+    loaded, read with regexes: for Python the literal strings passed to Plugin(name, version,
+    ...), for Rust those of export_plugin!'s name and version (None for the version when it is
+    env!("CARGO_PKG_VERSION"), the Cargo.toml version, which is the manifest's)."""
+    if m["kind"] == "python":
+        found = PY_PLUGIN_RE.search(script_path(folder, m).read_text(encoding="utf-8"))
+        if not found:
+            raise Error(f'{folder.name}: no Plugin("name", "version", ...) with literal strings in {m["script"]}')
+        return {"name": found[1][1:-1], "version": found[2][1:-1]}
+    src = "\n".join(p.read_text(encoding="utf-8") for p in sorted((folder / "src").rglob("*.rs")))
+    export = RS_EXPORT_RE.search(src)
+    if not export:
+        raise Error(f"{folder.name}: no export_plugin!(...) found in src/")
+    name = re.search(r'\bname\s*:\s*"([^"\\]*)"', export["body"])
+    version = re.search(r'\bversion\s*:\s*(?:"([^"\\]*)"|(env!\s*\(\s*"CARGO_PKG_VERSION"\s*\)))', export["body"])
+    if not name or not version:
+        raise Error(f'{folder.name}: export_plugin! needs name: "..." and version: env!("CARGO_PKG_VERSION") or "..."')
+    return {"name": name[1], "version": version[1]}
+
+
+def identity_errors(folder, m, code):
+    """Where the name and version the code gives itself differ from the manifest's."""
+    where = m["script"] if m["kind"] == "python" else "export_plugin!"
+    errors = []
+    for k in ("name", "version"):
+        if code[k] is not None and code[k] != m[k]:
+            errors.append(f"{folder.name}: {where} has {k} {code[k]!r}, plugin.json has {m[k]!r}")
+    return errors
+
+
+def index_errors(m, p):
+    """Where a manifest disagrees with its plugin's entry in the index, p. Its details are
+    copied there by each release: a manifest at the latest released version must have the
+    same, and none can be older."""
+    try:
+        if semver(m["version"]) < semver(p["latest"]):
+            return [f"{m['id']}: plugin.json has version {m['version']}, older than the latest release {p['latest']}"]
+    except (KeyError, ValueError, AttributeError, TypeError):
+        return []
+    if m["version"] != p["latest"]:
+        return []
+    return [
+        f"{m['id']}: plugin.json {k} {m.get(k)!r} differs from plugins.json's {p.get(k)!r}: "
+        "release a new version to change it"
+        for k in PLUGIN_FIELDS
+        if m.get(k) != p.get(k)
+    ]
+
+
+def script_path(folder, m):
+    """A Python plugin's script: only the file name of the manifest's script, in `folder`
+    (load_plugin also refuses any other)."""
+    return folder / Path(m["script"]).name
 
 
 def plugin_dirs():
@@ -232,11 +297,14 @@ def load_plugin(folder):
         m["files"] = {"linux-x86_64": f"lib{lib}.so", "windows-x86_64": f"{lib}.dll"}
     else:
         script = m.get("script")
-        if not script or not (folder / script).is_file():
+        # A file name in the plugin's folder: never a path elsewhere.
+        if not isinstance(script, str) or script != Path(script).name or not script.endswith(".py"):
+            raise Error(f"{folder.name}: script {script!r} must be the name of a .py file in its folder")
+        if not script_path(folder, m).is_file():
             raise Error(f"{folder.name}: script {script!r} not found")
         m["files"] = {"any": script}
         try:
-            deps = pep723_dependencies(folder / script)
+            deps = pep723_dependencies(script_path(folder, m))
         except tomllib.TOMLDecodeError as e:
             raise Error(f"{folder.name}: the PEP 723 block of {script} isn't TOML: {e}") from e
         if not isinstance(deps, list) or not all(isinstance(d, str) and d.strip() for d in deps):
@@ -333,6 +401,39 @@ def sdk_abi(package, locked=True):
     return int(found[1])
 
 
+def sdk_dependency_errors(cargo_toml, where):
+    """Problems with how the Rust plugin's Cargo.toml (its text) takes the plugin SDK: from
+    the app's repository on GitHub, as CI and the releases have only this one."""
+    dep = tomllib.loads(cargo_toml).get("dependencies", {}).get(SDK_PACKAGE)
+    if dep is None or (isinstance(dep, dict) and "git" in dep):
+        return []
+    return [
+        f"{where}: {SDK_PACKAGE} must come from the app's repository (git and tag), as CI has only "
+        "this one; make sdk-local builds against a local SDK"
+    ]
+
+
+def lock_errors(lock):
+    """Problems with Cargo.lock (its text): an SDK not from GitHub, as make sdk-local writes
+    it, which CI's --locked builds refuse."""
+    packages = tomllib.loads(lock).get("package", [])
+    return [
+        f"Cargo.lock: {SDK_PACKAGE} {p.get('version')} is not from GitHub (make sdk-local?): "
+        "run make sdk-github, or leave Cargo.lock out of the commit"
+        for p in packages
+        if p.get("name") == SDK_PACKAGE and not str(p.get("source", "")).startswith("git+https://github.com/")
+    ]
+
+
+def cmd_check_lock(args):
+    lock = sys.stdin.read() if args.file == "-" else Path(args.file).read_text(encoding="utf-8")
+    errors = lock_errors(lock)
+    for problem in errors:
+        print(f"::error::{problem}")
+    if errors:
+        raise Error(f"{len(errors)} problem(s)")
+
+
 def tag_message(tag):
     """The message of an annotated tag (the version's changes), or None."""
 
@@ -382,7 +483,7 @@ def plugin_entry(folder, m, files, changes=None, abi=None, index=None):
     if changes:
         version["changes"] = changes
     if m["kind"] == "python":
-        deps = pep723_dependencies(folder / m["script"])
+        deps = pep723_dependencies(script_path(folder, m))
         if deps:
             version["dependencies"] = deps
     version["files"] = files
@@ -450,6 +551,69 @@ def cmd_merge(args):
     index["plugins"].sort(key=lambda p: p["id"])
     INDEX.write_text(json.dumps(index, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")  # NOSONAR
     print(f"added {entry['id']} {new['version']} to plugins.json")
+    return entry
+
+
+def run(*cmd, capture=False, check=True):
+    """Runs a command (git, gh) in the repository; its output, stripped, when `capture`."""
+    try:
+        r = subprocess.run(list(cmd), cwd=ROOT, check=check, text=True, capture_output=capture)
+    except subprocess.CalledProcessError as e:
+        raise Error(f"{' '.join(cmd[:3])} failed (exit {e.returncode}): {(e.stderr or '').strip()}") from e
+    return (r.stdout or "").strip() if capture else ""
+
+
+def release_draft(tag):
+    """Whether the GitHub Release of `tag` is a draft: True, False when published, None
+    when there is none."""
+    answer = run("gh", "release", "view", tag, "--json", "isDraft", "--jq", ".isDraft", capture=True, check=False)
+    return {"true": True, "false": False}.get(answer)
+
+
+def cmd_unpublished(args):
+    if release_draft(args.tag) is False:
+        raise Error(f"Release {args.tag} is already published; release a new version instead.")
+
+
+def cmd_publish(args):
+    """Files go on a draft, published once they are all there: with release immutability on,
+    a published release takes no more files. The files and the notes are only handed to gh,
+    never opened here."""
+    if release_draft(args.tag):
+        run("gh", "release", "delete", args.tag, "--yes")  # a draft left by a failed run; the tag stays
+    run("gh", "release", "create", args.tag, "--draft", "--verify-tag", "--latest=false",
+        "--title", args.title, "--notes-file", args.notes)  # fmt: skip
+    run("gh", "release", "upload", args.tag, *args.files)
+    run("gh", "release", "edit", args.tag, "--draft=false", "--latest=false")
+    print(f"published {args.tag} with {len(args.files)} file(s)")
+
+
+def pr_body(tag, repo, entry):
+    """The description of a release's index pull request: a link to it and its entry."""
+    url = f"https://github.com/{repo}/releases/tag/{tag}"
+    text = json.dumps(entry, indent=2, ensure_ascii=False)
+    return f"Adds release [{tag}]({url}) to plugins.json.\n\n```json\n{text}\n```\n"
+
+
+def cmd_pull_request(args):
+    """The entry merged into plugins.json and validated on the branch args.branch, made from the
+    checked-out default branch, force-pushed (a re-run replaces the branch an earlier one left),
+    and a pull request to args.base, unless one is open for that branch already."""
+    run("git", "config", "user.name", "github-actions[bot]")
+    run("git", "config", "user.email", "41898282+github-actions[bot]@users.noreply.github.com")
+    run("git", "switch", "-c", args.branch)
+    entry = cmd_merge(argparse.Namespace(entry=args.entry))
+    cmd_validate(argparse.Namespace())
+    run("git", "commit", "-am", f"Index {args.tag}")
+    run("git", "push", "--force", "origin", f"HEAD:refs/heads/{args.branch}")
+    opened = run("gh", "pr", "list", "--head", args.branch, "--state", "open",
+                 "--json", "number", "--jq", ".[].number", capture=True)  # fmt: skip
+    if opened:
+        print(f"A pull request for {args.branch} is already open (#{opened}); its branch was updated.")
+        return
+    # The body as an argument: no file is written for it.
+    run("gh", "pr", "create", "--base", args.base, "--head", args.branch,
+        "--title", f"Index {args.tag}", "--body", pr_body(args.tag, args.repo, entry))  # fmt: skip
 
 
 def cmd_dependencies(args):
@@ -458,7 +622,7 @@ def cmd_dependencies(args):
     for folder in plugin_dirs():
         m = load_plugin(folder)
         if m["kind"] == "python":
-            seen += [d for d in pep723_dependencies(folder / m["script"]) if d not in seen]
+            seen += [d for d in pep723_dependencies(script_path(folder, m)) if d not in seen]
     for d in seen:
         print(d)
 
@@ -469,9 +633,11 @@ def cmd_version(args):
 
 def cmd_validate(args):
     errors = []
+    manifests = {}
     for folder in plugin_dirs():
         try:
             m = load_plugin(folder)
+            manifests[m["id"]] = m
             code = code_provides(folder, m)
             for k in PROVIDES:
                 declared, actual = set(m.get(k, [])), set(code[k])
@@ -479,6 +645,7 @@ def cmd_validate(args):
                     errors.append(
                         f"{folder.name}: plugin.json {k} {sorted(declared)} don't match the code's {sorted(actual)}"
                     )
+            errors += identity_errors(folder, m, code_identity(folder, m))
         except (Error, OSError, ValueError, KeyError) as e:
             errors.append(str(e))
     for folder in PLUGINS.iterdir():
@@ -488,6 +655,7 @@ def cmd_validate(args):
     for cargo in PLUGINS.glob("*/Cargo.toml"):
         if f"plugins/{cargo.parent.name}" not in workspace:
             errors.append(f"plugins/{cargo.parent.name} is not in the workspace members of Cargo.toml")
+        errors += sdk_dependency_errors(cargo.read_text(encoding="utf-8"), f"plugins/{cargo.parent.name}/Cargo.toml")
     index = json.loads(INDEX.read_text(encoding="utf-8"))
     if index.get("format") != 1 or not isinstance(index.get("plugins"), list):
         errors.append("plugins.json: needs format 1 and a plugins list")
@@ -497,6 +665,8 @@ def cmd_validate(args):
         if pid in ids:
             errors.append(f"plugins.json: {pid} listed twice")
         ids.add(pid)
+        if pid in manifests:
+            errors += index_errors(manifests[pid], p)
         seen = set()
         for v in p.get("versions", []):
             where = f"plugins.json: {pid} {v.get('version')}"
@@ -571,14 +741,33 @@ def main():
     s = sub.add_parser("verify")
     s.add_argument("entry")
     s.set_defaults(fn=cmd_verify)
+    s = sub.add_parser("unpublished")
+    s.add_argument("tag")
+    s.set_defaults(fn=cmd_unpublished)
+    s = sub.add_parser("publish")
+    s.add_argument("tag")
+    s.add_argument("--notes", required=True, help="release notes (from prepare)")
+    s.add_argument("--title", required=True, help="the release's title")
+    s.add_argument("files", nargs="+", help="the files to publish")
+    s.set_defaults(fn=cmd_publish)
     s = sub.add_parser("merge")
     s.add_argument("entry")
     s.set_defaults(fn=cmd_merge)
+    s = sub.add_parser("pull-request")
+    s.add_argument("tag")
+    s.add_argument("entry")
+    s.add_argument("--base", required=True, help="the branch to merge into (the default branch)")
+    s.add_argument("--branch", required=True, help="the branch to commit on, made from the checked-out one")
+    s.add_argument("--repo", required=True, help="OWNER/REPO, for the release's link")
+    s.set_defaults(fn=cmd_pull_request)
     s = sub.add_parser("version")
     s.add_argument("plugin")
     s.set_defaults(fn=cmd_version)
     s = sub.add_parser("validate")
     s.set_defaults(fn=cmd_validate)
+    s = sub.add_parser("check-lock")
+    s.add_argument("file", nargs="?", default=str(ROOT / "Cargo.lock"))
+    s.set_defaults(fn=cmd_check_lock)
     s = sub.add_parser("dependencies")
     s.set_defaults(fn=cmd_dependencies)
     args = ap.parse_args()

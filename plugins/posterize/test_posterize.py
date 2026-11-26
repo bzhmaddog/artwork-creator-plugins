@@ -15,6 +15,10 @@ class DeclaredTest(unittest.TestCase):
         self.assertEqual([e.name for e in posterize.plugin.effects], ["Posterize"])
         self.assertEqual([g.name for g in posterize.plugin.generators], ["Bands"])
 
+    def test_bands_colors_are_grouped(self):
+        groups = {p["id"]: p.get("group") for p in posterize.Bands.params}
+        self.assertEqual(groups, {"width": None, "angle": None, "first": "Colors", "second": "Colors"})
+
 
 class PosterizeTest(unittest.TestCase):
     def apply(self, img, levels):

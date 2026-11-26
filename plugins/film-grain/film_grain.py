@@ -50,4 +50,4 @@ class FilmGrain(Effect):
         image.pixels[:] = out.tobytes()
 
 
-plugin = Plugin("Film grain", "1.0", effects=[FilmGrain()])
+plugin = Plugin("Film grain", "1.0.1", effects=[FilmGrain()])

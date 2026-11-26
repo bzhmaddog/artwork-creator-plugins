@@ -204,3 +204,16 @@ fn dot_grid_offset_shifts_the_dots() {
         }
     }
 }
+
+#[test]
+fn ink_and_paper_are_grouped() {
+    for params in [Halftone.params(), DotGrid.params()] {
+        let grouped: Vec<_> = params
+            .iter()
+            .filter(|p| p.group.as_deref() == Some("Colors"))
+            .map(|p| p.id.as_str())
+            .collect();
+        assert_eq!(grouped, ["ink", "paper"]);
+        assert_eq!(params.iter().filter(|p| p.group.is_some()).count(), 2);
+    }
+}

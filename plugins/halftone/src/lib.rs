@@ -29,6 +29,15 @@ fn screen(dot_min: f32, dot_default: f32) -> [Param; 4] {
     ]
 }
 
+/// The ink and paper colors, in a "Colors" group: the effect's and the generator's, but
+/// for the paper's default.
+fn colors(paper: [u8; 4]) -> [Param; 2] {
+    [
+        Param::color("ink", "Ink", [0, 0, 0, 255]).group("Colors"),
+        Param::color("paper", "Paper", paper).group("Colors"),
+    ]
+}
+
 /// What one cell of the screen samples from the image.
 #[derive(Clone, Copy, Default)]
 struct Cell {
@@ -58,16 +67,13 @@ impl Effect for Halftone {
                 .role(Role::Size),
         ];
         params.extend(screen(0.0, 100.0));
-        params.extend([
-            Param::choice(
-                "style",
-                "Dots",
-                &[("ink", "One ink"), ("color", "Image colors")],
-                "ink",
-            ),
-            Param::color("ink", "Ink", [0, 0, 0, 255]),
-            Param::color("paper", "Paper", [255, 255, 255, 255]),
-        ]);
+        params.push(Param::choice(
+            "style",
+            "Dots",
+            &[("ink", "One ink"), ("color", "Image colors")],
+            "ink",
+        ));
+        params.extend(colors([255, 255, 255, 255]));
         params
     }
 
@@ -216,10 +222,7 @@ impl Generator for DotGrid {
     fn params(&self) -> Vec<Param> {
         let mut params = vec![Param::float("spacing", "Spacing", 0.5, 50.0, 4.0).unit("mm")];
         params.extend(screen(1.0, 50.0));
-        params.extend([
-            Param::color("ink", "Ink", [0, 0, 0, 255]),
-            Param::color("paper", "Paper", [255, 255, 255, 0]),
-        ]);
+        params.extend(colors([255, 255, 255, 0]));
         params
     }
 

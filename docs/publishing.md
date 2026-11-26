@@ -57,7 +57,7 @@ cargo-zigbuild. See the top of the `Makefile`.
    release tags: lowercase letters, digits and dashes.
 2. Add the code:
    - **Rust**: a crate with `crate-type = ["cdylib"]` and the SDK at an app release tag,
-     `artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator", tag = "v0.17.0" }`
+     `artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.17.0" }`
      (the latest, unless the plugin must keep working with older apps). Add
      `"plugins/<id>"` to `members` in the top `Cargo.toml` (CI fails if you forget).
    - **Python**: one script. If it needs packages from PyPI, list them in a PEP 723 block
@@ -88,6 +88,12 @@ cargo-zigbuild. See the top of the `Makefile`.
    as `role=` is new in the SDK the app provides. Without a role, the app guesses it
    from an int's id `seed` and a float's unit `°` or `px`.
 
+   A parameter's `group` puts it in a folding section of that name, with the other
+   parameters of the same group, where the first of them is: `group=` of every
+   `*_param` in Python, `Param::group` in Rust. Groups need SDK 0.5.0. A Rust plugin
+   using them still runs on older apps, which show the parameters ungrouped; a Python
+   one doesn't, as `group=` is new in the SDK the app provides.
+
 3. Add `plugins/<id>/plugin.json`. Copy one from another plugin of the same kind and
    change it:
 
@@ -111,7 +117,9 @@ cargo-zigbuild. See the top of the `Makefile`.
    `effects` and `generators` list the names the code exports (an Effect's or Generator's
    `name`), so the plugin manager can show them before the plugin is installed. Leave out a
    list that would be empty, and update them in the version that adds or removes one:
-   `make validate` checks them against the code.
+   `make validate` checks them against the code. It also checks that the `name` and
+   (Python) `version` are the ones the code gives itself, in `Plugin("My effect", "1.0.0",
+   ...)` or `export_plugin!`: the app shows those once the plugin is loaded.
 
    A Rust plugin has `"kind": "library"` and no `version`, `script` or `engines.sdk`: its version is
    the one in its `Cargo.toml`, and its ABI version is read from the SDK when it's released.
@@ -131,8 +139,9 @@ cargo-zigbuild. See the top of the `Makefile`.
 2. **Bump the version**:
    - Rust: `version` in `plugins/<id>/Cargo.toml`, then `cargo update -p <id>` to update
      `Cargo.lock` (the builds and checks use `--locked` and fail until it matches).
-   - Python: `version` in `plugins/<id>/plugin.json`. You can also update the version
-     passed to `Plugin(...)` in the script to match.
+   - Python: `version` in `plugins/<id>/plugin.json`, and the version passed to
+     `Plugin(...)` in the script, which the app shows once the plugin is loaded: they must
+     match (`make validate` fails otherwise).
 
    Raise `engines.sdk` (Python) if the new version uses something a newer SDK added, such
    as `role=`, and set `engines.app` if it needs the app itself to behave differently (a
@@ -157,8 +166,11 @@ cargo-zigbuild. See the top of the `Makefile`.
    make tag PLUGIN=halftone MSG="Line screen added"
    ```
 
-   This runs the workflow's first check locally (the version isn't released yet), then
-   creates the annotated tag `halftone-0.2.0`. Without make:
+   This runs the workflow's first checks locally (`make validate`, and that the version
+   isn't released yet), then creates the annotated tag `halftone-0.2.0`. The workflow
+   validates again at the tagged commit before it builds or publishes anything, so a tag
+   whose manifest and code disagree (name, version, effects, generators) or whose details
+   differ from `plugins.json` publishes nothing. Without make:
    `git tag -a halftone-0.2.0 -m "Line screen added"`.
 5. **Push the tag**. This starts the release:
 
@@ -254,6 +266,28 @@ version of the plugin's own SDK. To move a plugin:
    release records as `abi`. The app loads a library only for an ABI version it knows
    (`OLDEST_ABI_VERSION` to `ABI_VERSION` in the SDK), so a Rust plugin needs no
    `engines` for that; but apps that don't know the new ABI won't be offered it.
+
+### Working with an SDK that isn't released yet
+
+To change the SDK and a plugin together, build against the SDK of a local app checkout:
+
+```sh
+make sdk-local     # SDK_PATH=../artwork-creator-app/plugin-sdk by default
+make sdk-github    # back to the SDK from GitHub
+```
+
+`make install` runs `make sdk-local` when it finds the app checkout there (and
+`make sdk-github` wasn't chosen since: it leaves an existing `.cargo/config.toml` alone).
+`make sdk-local` writes a `[patch]` in `.cargo/config.toml`, which git ignores, so it is
+for this clone only: the `Cargo.toml` files keep their git dependency (`make validate`
+refuses a `path` one, which CI couldn't build, as it checks out this repository alone).
+Every build, test and `make serve` then uses the local SDK. `Cargo.lock` names the local
+SDK meanwhile, so it shows as changed: leave it out of commits (the commit hook refuses
+it), or run `make sdk-github` first when it has a change of its own to commit.
+
+Until the app releases the SDK, CI needs it from GitHub too: point the plugin at a pushed
+commit of the app, `rev = "<commit>"` in place of `tag`, and move it to the release
+tag before releasing the plugin.
 
 A Python plugin runs with the SDK of the app it's installed in, the only one there. It
 moves by raising its `engines.sdk` (and `engines.app`, see
