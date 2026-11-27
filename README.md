@@ -39,7 +39,10 @@ git push origin halftone-0.2.0
 The **Release plugin** workflow builds the files, publishes them on the GitHub Release for
 that tag, checks their hashes, and opens an "Index <tag>" pull request that adds the new
 version to `plugins.json`. Once you merge it, the **Pages** workflow publishes `plugins.json` on GitHub Pages, at
-`https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json`, where the app reads it.
+`https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json`, where the app reads it,
+with a page that lists the plugins and their versions for people,
+`https://bzhmaddog.github.io/artwork-creator-plugins/` ([`site/index.html`](site/index.html) and its script
+[`site/index.js`](site/index.js), which fetches the published `plugins.json` and builds the page in the browser).
 The whole process, adding a new plugin, and what to do when a release fails:
 [docs/publishing.md](docs/publishing.md).
 

@@ -125,8 +125,47 @@ class ServerTest(ServeTestCase):
         self.add_python()
         _, _, body = self.get("/plugins.json")
         digest = json.loads(body)["plugins"][0]["versions"][0]["files"]["any"]["sha256"]
-        for path in ("/", "/files/" + "0" * 64 + "/demo.py", f"/files/{digest}/other.py", "/../plugins.json"):
+        for path in (
+            "/",
+            "/index.js",
+            "/files/" + "0" * 64 + "/demo.py",
+            f"/files/{digest}/other.py",
+            "/../plugins.json",
+        ):
             self.assertEqual(self.get(path)[0], 404, path)
+
+    def test_site(self):
+        site = self.root / "site"
+        site.mkdir()
+        (site / "index.html").write_text("<p>page</p>")
+        (site / "index.js").write_text("main();")
+        (self.root / "secret.txt").write_text("no")
+        status, headers, body = self.get("/")
+        self.assertEqual((status, headers["Content-Type"], body), (200, "text/html; charset=utf-8", b"<p>page</p>"))
+        (site / "index.html").write_text("<head><title>t</title></head><body></body>")
+        _, _, body = self.get("/index.html")
+        self.assertEqual(body, b"<head><title>t</title>" + serve.INDEX_SOURCES_META + b"</head><body></body>")
+        status, headers, body = self.get("/index.js?v=2")
+        self.assertEqual(status, 200)
+        self.assertIn("javascript", headers["Content-Type"])
+        self.assertEqual(body, b"main();")
+        for path in ("/site/index.js", "/../secret.txt", "/%2e%2e/secret.txt", "/missing.js"):
+            self.assertEqual(self.get(path)[0], 404, path)
+
+    def test_index_sources(self):
+        status, headers, body = self.get("/sources.json")
+        self.assertEqual((status, headers["Content-Type"]), (200, "application/json"))
+        sources = json.loads(body)["sources"]
+        self.assertEqual([s["id"] for s in sources], ["local", "file", "published"])
+        self.assertEqual(sources[2]["url"], serve.PUBLISHED_INDEX)
+
+    def test_committed_index(self):
+        (self.root / "plugins.json").unlink(missing_ok=True)
+        self.assertEqual(self.get("/committed/plugins.json")[0], 404)
+        (self.root / "plugins.json").write_text('{"format": 1, "plugins": []}')
+        status, headers, body = self.get("/committed/plugins.json")
+        self.assertEqual((status, headers["Content-Type"]), (200, "application/json"))
+        self.assertEqual(json.loads(body), {"format": 1, "plugins": []})
 
     def test_error_in_the_list(self):
         self.add_python(version="bad")

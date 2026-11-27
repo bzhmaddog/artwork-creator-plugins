@@ -4,7 +4,7 @@ the app before a release (make serve). The list is the one the Release workflow 
 write (plugin_index.plugin_entry), made from the manifests and builds only (the committed
 plugins.json isn't read), with every file served from here instead of a GitHub Release,
 and it's made again on every fetch: the Rust plugins are rebuilt and every file is
-hashed again.
+hashed again. The page of site/ is served at /, to preview it with that list.
 
 Standard library only (Python 3.11+).
 """
@@ -14,11 +14,31 @@ import contextlib
 import hashlib
 import http.server
 import json
+import mimetypes
 import subprocess
 import sys
 import threading
 
 from plugin_index import ROOT, Error, load_plugin, plugin_dirs, plugin_entry, sdk_abi
+
+# The page that lists the plugins (site/, published with plugins.json on GitHub Pages).
+SITE = "site"
+
+# The official index, as the app reads it (OFFICIAL in the app).
+PUBLISHED_INDEX = "https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json"
+
+# The indexes the page offers in its select when served from here (/sources.json): this
+# server's list, the plugins.json of the working tree (/committed/plugins.json, the file
+# the Release workflow updates) and the published one. The page reads this list only when
+# it names it, which it does only when served from here (INDEX_SOURCES_META).
+INDEX_SOURCES = {
+    "sources": [
+        {"id": "local", "label": "Working tree (make serve)", "url": "plugins.json"},
+        {"id": "file", "label": "plugins.json of this clone", "url": "committed/plugins.json"},
+        {"id": "published", "label": "Published (GitHub Pages)", "url": PUBLISHED_INDEX},
+    ]
+}
+INDEX_SOURCES_META = b'<meta name="index-sources" content="sources.json">\n'
 
 # Platform key in the index -> Rust target whose target/ folder has its file.
 PLATFORM_TARGETS = {"linux-x86_64": "x86_64-unknown-linux-gnu", "windows-x86_64": "x86_64-pc-windows-gnu"}
@@ -86,6 +106,17 @@ class LocalRepository:
             return {"format": 1, "name": "Local plugins (working tree)", "plugins": plugins}
 
 
+def site_file(path):
+    """The file of site/ a request path names ("/" is index.html), or None. Only the names
+    of the files directly in site/ match, so no path can reach outside it."""
+    name = "index.html" if path == "/" else path[1:]
+    folder = ROOT / SITE
+    if not folder.is_dir():
+        return None
+    files = {p.name: p for p in folder.iterdir() if p.is_file()}
+    return files.get(name)
+
+
 def make_server(host, port, build):
     """The HTTP server of a LocalRepository, bound but not serving yet. With port 0 the
     system picks a free port, which the list's URLs then use."""
@@ -111,6 +142,23 @@ def make_server(host, port, build):
                     return self.send(500, f"{e}\n".encode(), "text/plain; charset=utf-8")
                 body = json.dumps(index, indent=2, ensure_ascii=False) + "\n"
                 return self.send(200, body.encode(), "application/json")
+            if path == "/sources.json":
+                body = json.dumps(INDEX_SOURCES, indent=2) + "\n"
+                return self.send(200, body.encode(), "application/json")
+            if path == "/committed/plugins.json":
+                committed = ROOT / "plugins.json"
+                if committed.is_file():
+                    return self.send(200, committed.read_bytes(), "application/json")
+            page = site_file(path)
+            if page is not None:
+                content_type = mimetypes.guess_type(page.name)[0] or "application/octet-stream"
+                if content_type.startswith("text/") or content_type.endswith("javascript"):
+                    content_type += "; charset=utf-8"
+                data = page.read_bytes()
+                # The page's select of indexes (see INDEX_SOURCES), before the page's script runs.
+                if page.name == "index.html":
+                    data = data.replace(b"</head>", INDEX_SOURCES_META + b"</head>", 1)
+                return self.send(200, data, content_type)
             parts = path.strip("/").split("/")
             if len(parts) == 3 and parts[0] == "files" and parts[1] in repo.files:
                 name, data = repo.files[parts[1]]

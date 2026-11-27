@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en" data-bs-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Artwork Creator plugins</title>
+<meta name="description" content="The official plugins of Artwork Creator, with their versions.">
+<!--
+  The plugins of plugins.json, the official index the app reads. The page has no data of
+  its own: its script (index.js) fetches the plugins.json next to it (the published one, on GitHub Pages,
+  which allows cross-origin requests, when the page is opened from disk; served by
+  make serve, the page also gets a select of the index to list) and builds a card per plugin, so the page is always
+  up to date with the index the app reads, wherever the page itself is opened from.
+-->
+<!-- The app's icon (artwork-creator-app/assets/icon: artwork-creator-small.svg, made for
+     small sizes, and artwork-creator.ico for browsers without SVG icons). -->
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon.ico" sizes="16x16 24x24 32x32 48x48 64x64 128x128 256x256">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
+<script src="index.js" defer></script>
+<style>
+  .version + .version { border-top: 1px solid var(--bs-border-color); }
+  .previous > summary { cursor: pointer; }
+  .provides { max-width: 640px; }
+  .provides td:first-child { width: 55%; }
+  .previous[open] > summary { margin-bottom: .25rem; }
+</style>
+</head>
+<body>
+<header class="container py-4">
+  <h1 id="title" class="h2 mb-1">Artwork Creator plugins</h1>
+  <p class="text-body-secondary mb-0">Install them from the app's plugin manager. This page lists what the index offers.</p>
+</header>
+<main class="container">
+  <div class="d-flex flex-wrap align-items-center gap-3 mb-4">
+    <input id="filter" type="search" class="form-control" style="max-width: 360px"
+           placeholder="Filter by name, description, effect…" aria-label="Filter plugins">
+    <select id="source" class="form-select w-auto" aria-label="Index to list" hidden></select>
+    <span id="count" class="text-body-secondary small"></span>
+  </div>
+  <div id="status" class="text-body-secondary py-5">Loading plugins.json…</div>
+  <div id="plugins"></div>
+</main>
+<footer class="container py-4 text-body-secondary small">
+  Generated from <a href="https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json">plugins.json</a>.
+  Source: <a href="https://github.com/bzhmaddog/artwork-creator-plugins">bzhmaddog/artwork-creator-plugins</a>.
+</footer>
+</body>
+</html>
