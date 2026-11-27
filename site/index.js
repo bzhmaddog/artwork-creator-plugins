@@ -106,12 +106,17 @@ function compareVersions(a, b) {
 }
 
 // The effects and generators of the latest version, as a table: one row each, with the
-// oldest version that has it (versions: newest first).
+// version since which every version has it (versions: newest first).
 function providesTable(latest, versions) {
   const rows = [];
   for (const [key, type] of [["effects", "Effect"], ["generators", "Generator"]]) {
     for (const name of latest?.[key] || []) {
-      const since = versions.findLast((v) => (v[key] || []).includes(name));
+      const start = versions.indexOf(latest);
+      let since = null;
+      for (const v of versions.slice(start < 0 ? 0 : start)) {
+        if (!(v[key] || []).includes(name)) break;
+        since = v;
+      }
       rows.push(el("tr", {},
         el("td", {}, name),
         el("td", {}, el("span", { class: "badge " + (key === "effects" ? "text-bg-info" : "text-bg-light") }, type)),
@@ -182,18 +187,28 @@ function applyFilter() {
     shown === cards.length ? cards.length + " plugins" : shown + " of " + cards.length + " plugins";
 }
 
+// Bumped by each load(), so that a load which a newer one replaced drops its results.
+let currentLoad = 0;
+
 // Lists and shows the plugins of the index at url.
 async function load(url) {
+  const id = ++currentLoad;
   const status = document.getElementById("status");
   const list = document.getElementById("plugins");
   list.replaceChildren();
+  document.getElementById("count").textContent = "";
+  document.getElementById("title").textContent = DEFAULT_TITLE;
+  document.title = DEFAULT_TITLE;
+  document.getElementById("index-link").href = url;
   status.className = "text-body-secondary py-5";
   status.textContent = "Loading plugins.json…";
   status.hidden = false;
   try {
     const response = await fetch(url, { cache: "no-cache" });
+    if (id !== currentLoad) return;
     if (!response.ok) throw new Error("HTTP " + response.status);
     const index = await response.json();
+    if (id !== currentLoad) return;
     if (!index || !Array.isArray(index.plugins)) throw new Error("no plugins list in the file");
 
     const title = index.name || DEFAULT_TITLE;
@@ -204,6 +219,7 @@ async function load(url) {
     status.hidden = true;
     applyFilter();
   } catch (e) {
+    if (id !== currentLoad) return;
     status.className = "alert alert-danger";
     status.textContent = "Couldn't load " + url + ": " + e.message;
   }

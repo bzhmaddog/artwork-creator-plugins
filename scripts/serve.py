@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
 """Serve the working tree's plugins as a plugin repository on this machine, to try them in
 the app before a release (make serve). The list is the one the Release workflow would
-write (plugin_index.plugin_entry), made from the manifests and builds only (the committed
-plugins.json isn't read), with every file served from here instead of a GitHub Release,
+write (plugin_index.plugin_entry), made from the manifests and builds only (the
+repository's plugins.json isn't read for it), with every file served from here instead of a GitHub Release,
 and it's made again on every fetch: the Rust plugins are rebuilt and every file is
-hashed again. The page of site/ is served at /, to preview it with that list.
+hashed again. The page of site/ is served at /, to preview it with that list, and the
+repository's plugins.json file, as it is on disk, at /repository/plugins.json.
 
 Standard library only (Python 3.11+).
 """
@@ -28,13 +29,14 @@ SITE = "site"
 PUBLISHED_INDEX = "https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json"
 
 # The indexes the page offers in its select when served from here (/sources.json): this
-# server's list, the plugins.json of the working tree (/committed/plugins.json, the file
-# the Release workflow updates) and the published one. The page reads this list only when
+# server's list, the repository's plugins.json file as it is on disk, uncommitted edits
+# included (/repository/plugins.json, the file the Release workflow updates) and the
+# published one. The page reads this list only when
 # it names it, which it does only when served from here (INDEX_SOURCES_META).
 INDEX_SOURCES = {
     "sources": [
         {"id": "local", "label": "Working tree (make serve)", "url": "plugins.json"},
-        {"id": "file", "label": "plugins.json of this clone", "url": "committed/plugins.json"},
+        {"id": "file", "label": "plugins.json of this clone", "url": "repository/plugins.json"},
         {"id": "published", "label": "Published (GitHub Pages)", "url": PUBLISHED_INDEX},
     ]
 }
@@ -145,10 +147,10 @@ def make_server(host, port, build):
             if path == "/sources.json":
                 body = json.dumps(INDEX_SOURCES, indent=2) + "\n"
                 return self.send(200, body.encode(), "application/json")
-            if path == "/committed/plugins.json":
-                committed = ROOT / "plugins.json"
-                if committed.is_file():
-                    return self.send(200, committed.read_bytes(), "application/json")
+            if path == "/repository/plugins.json":
+                on_disk = ROOT / "plugins.json"
+                if on_disk.is_file():
+                    return self.send(200, on_disk.read_bytes(), "application/json")
             page = site_file(path)
             if page is not None:
                 content_type = mimetypes.guess_type(page.name)[0] or "application/octet-stream"

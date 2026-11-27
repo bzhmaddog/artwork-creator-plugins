@@ -159,11 +159,11 @@ class ServerTest(ServeTestCase):
         self.assertEqual([s["id"] for s in sources], ["local", "file", "published"])
         self.assertEqual(sources[2]["url"], serve.PUBLISHED_INDEX)
 
-    def test_committed_index(self):
+    def test_repository_index(self):
         (self.root / "plugins.json").unlink(missing_ok=True)
-        self.assertEqual(self.get("/committed/plugins.json")[0], 404)
+        self.assertEqual(self.get("/repository/plugins.json")[0], 404)
         (self.root / "plugins.json").write_text('{"format": 1, "plugins": []}')
-        status, headers, body = self.get("/committed/plugins.json")
+        status, headers, body = self.get("/repository/plugins.json")
         self.assertEqual((status, headers["Content-Type"]), (200, "application/json"))
         self.assertEqual(json.loads(body), {"format": 1, "plugins": []})
 
