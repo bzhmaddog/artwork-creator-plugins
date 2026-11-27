@@ -180,12 +180,14 @@ impl Effect for Halftone {
                         }
                     }
                 }
-                let a = px[3] as f32 / 255.0;
-                for k in 0..4 {
-                    let mut out = paper[k] + (color[k] - paper[k]) * cover;
-                    if k == 3 {
-                        out *= a;
-                    }
+                // Paper and dots over the image the effect gets: where they are not
+                // opaque it shows through. The shape's own opacity stays.
+                let (pa, ca) = (paper[3] / 255.0, color[3] / 255.0);
+                let la = pa + (ca - pa) * cover;
+                for k in 0..3 {
+                    let out = paper[k] * pa
+                        + (color[k] * ca - paper[k] * pa) * cover
+                        + px[k] as f32 * (1.0 - la);
                     px[k] = out.round().clamp(0.0, 255.0) as u8;
                 }
             }

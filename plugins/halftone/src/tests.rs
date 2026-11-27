@@ -89,6 +89,23 @@ const INK: &str =
     r##""size": 8, "angle": 0, "style": "ink", "ink": "#000000ff", "paper": "#ffffffff""##;
 
 #[test]
+fn the_image_shows_through_transparent_paper() {
+    let gray = [90, 120, 150, 255];
+    let mut px = filled(gray, 16, 16);
+    let mut img = Image::new(&mut px, 16, 16, 16 * 4).unwrap();
+    let v = Values::from_json(
+        r##"{"size": 8, "angle": 0, "style": "ink", "ink": "#000000ff", "paper": "#ff000000"}"##,
+    )
+    .unwrap();
+    Halftone.apply(&mut img, &v, 1.0).unwrap();
+    let at = |x: usize, y: usize| &px[(y * 16 + x) * 4..][..4];
+    // Between the dots: the image as it was, neither the paper's color nor nothing.
+    assert_eq!(at(0, 0), gray);
+    // In a dot: the ink.
+    assert_eq!(at(4, 4), [0, 0, 0, 255]);
+}
+
+#[test]
 fn white_stays_paper() {
     let mut px = filled([255, 255, 255, 255], 32, 32);
     let mut img = Image::new(&mut px, 32, 32, 32 * 4).unwrap();
