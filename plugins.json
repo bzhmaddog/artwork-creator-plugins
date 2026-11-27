@@ -67,8 +67,33 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
-      "latest": "1.1.0",
+      "latest": "1.1.1",
       "versions": [
+        {
+          "version": "1.1.1",
+          "released": "2026-11-27",
+          "abi": 2,
+          "effects": [
+            "Halftone"
+          ],
+          "generators": [
+            "Dot grid"
+          ],
+          "changes": "Fixed transparent paper color not working as expected",
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.1.1/libhalftone.so",
+              "sha256": "ede2171c0e327ea5f9b23bbde14cccfa34dd6bd5633aa8150d35b2b26f8e344d",
+              "size": 527864
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.1.1/halftone.dll",
+              "sha256": "efa0706820195b4d377de9dfd30c7eb082cd2c03586e10ab1b462ef3403e2b8b",
+              "size": 282624
+            }
+          },
+          "compatible_from": "0.1.0"
+        },
         {
           "version": "1.1.0",
           "released": "2026-11-26",
