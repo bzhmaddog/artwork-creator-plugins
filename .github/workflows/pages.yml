@@ -1,10 +1,12 @@
 # Publishes plugins.json on GitHub Pages, where the app reads the official repository:
-# https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json. The file stays in the
+# https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json, with the page that
+# lists its plugins for people (site/index.html, which fetches that plugins.json) at
+# https://bzhmaddog.github.io/artwork-creator-plugins/. The file stays in the
 # repository, where the Release workflow's "Index" pull requests add versions to it, and
 # its copy on main stays too: app versions before the move read it there.
 #
 # Runs on each push to main that changes plugins.json (an "Index <tag>" pull request
-# merged, or a version removed by hand) or this workflow, and by hand (Actions > Pages >
+# merged, or a version removed by hand), the page (site/) or this workflow, and by hand (Actions > Pages >
 # Run workflow). The whole repository is validated first, as CI does (every manifest and
 # plugins.json): if it doesn't pass, nothing is published and the site keeps the last index
 # that did.
@@ -15,7 +17,7 @@ name: Pages
 on:
   push:
     branches: [main]
-    paths: [plugins.json, .github/workflows/pages.yml]
+    paths: [plugins.json, "site/**", .github/workflows/pages.yml]
   workflow_dispatch:
 
 permissions:
@@ -39,6 +41,7 @@ jobs:
       - name: Assemble the site
         run: |
           mkdir _site
+          cp -r site/. _site/
           cp plugins.json _site/
       - uses: actions/upload-pages-artifact@v3
         with:

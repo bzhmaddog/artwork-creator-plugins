@@ -140,9 +140,9 @@ the pull request to start CI, or merge as an admin bypassing the checks (see
 
 The app doesn't read `plugins.json` on the default branch (only versions up to 0.19.0
 do), but its copy on GitHub Pages. `.github/workflows/pages.yml` publishes it: on each
-push to `main` that changes `plugins.json` or the workflow, and by hand. Its `build` job runs
-`plugin_index.py validate` (the whole repository, as CI does) and uploads `plugins.json`
-alone as the site; its `deploy` job, the only one with `pages: write` and
+push to `main` that changes `plugins.json`, `site/` or the workflow, and by hand. Its `build`
+job runs `plugin_index.py validate` (the whole repository, as CI does) and uploads
+`plugins.json` and `site/` (the page that lists the plugins) as the site; its `deploy` job, the only one with `pages: write` and
 `id-token: write`, deploys it. If `validate` fails, nothing is deployed and the site keeps
 the previous index. So a merged Index pull request reaches the app only once that workflow
 has passed.

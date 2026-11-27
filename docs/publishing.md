@@ -36,6 +36,10 @@ Artwork Creator ◄── fetches plugins.json ─────────┘
   `https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json` each time it changes
   on `main`, where the app reads it. App versions up to 0.19.0 read it from `main`
   itself (`raw.githubusercontent.com`), so the file stays there too.
+- **`site/`** is the rest of the Pages site: `index.html`, a page that lists the plugins
+  and their versions, at `https://bzhmaddog.github.io/artwork-creator-plugins/`. It has no
+  data of its own: its script, `index.js`, fetches the published `plugins.json` and builds a card per
+  plugin, so it needs no change when a version is released.
 - **Releases** hold the files. With release immutability on, a published release, its files
   and its tag can't change, so a URL in `plugins.json` always serves the bytes its hash
   describes.
@@ -229,6 +233,10 @@ the *Plugins* tab.
   Windows, reaching WSL's `localhost`, add the Windows build:
   `make serve SERVE_TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"`. A file
   that hasn't been built is left out of the list.
+- The server also serves the page of `site/` at `http://127.0.0.1:8765/`, to preview a
+  change to the page before it's published. Served from here, the page has a select of
+  the index to list: the working tree's (this server's list, the default), the
+  `plugins.json` of this clone, or the published one. The published page doesn't have it.
 - Another port: `make serve SERVE_PORT=9000`.
 
 ## When something goes wrong
