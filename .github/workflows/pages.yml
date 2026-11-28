@@ -6,7 +6,8 @@
 # its copy on main stays too: app versions before the move read it there.
 #
 # Runs on each push to main that changes plugins.json (an "Index <tag>" pull request
-# merged, or a version removed by hand), the page (site/) or this workflow, and by hand (Actions > Pages >
+# merged, or a version removed by hand), the page (site/) or this workflow, every day (for
+# a new app release: apps.json), and by hand (Actions > Pages >
 # Run workflow). The whole repository is validated first, as CI does (every manifest and
 # plugins.json): if it doesn't pass, nothing is published and the site keeps the last index
 # that did.
@@ -18,6 +19,9 @@ on:
   push:
     branches: [main]
     paths: [plugins.json, "site/**", .github/workflows/pages.yml]
+  # Daily, for the app versions of the page (apps.json) once the app releases a new one.
+  schedule:
+    - cron: "23 5 * * *"
   workflow_dispatch:
 
 permissions:
@@ -43,6 +47,12 @@ jobs:
           mkdir _site
           cp -r site/. _site/
           cp plugins.json _site/
+      # The app versions of the page's select, from the app's release tags (a clone
+      # without files: git show fetches the two it reads at each tag).
+      - name: App versions (apps.json)
+        run: |
+          git clone --quiet --filter=blob:none --no-checkout https://github.com/bzhmaddog/artwork-creator-app.git "$RUNNER_TEMP/app"
+          python3 scripts/app_versions.py "$RUNNER_TEMP/app" > _site/apps.json
       - uses: actions/upload-pages-artifact@v3
         with:
           path: _site

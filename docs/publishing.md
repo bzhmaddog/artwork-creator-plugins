@@ -5,8 +5,7 @@ How a plugin goes from a commit to the Artwork Creator plugin manager. Short ver
 ```sh
 # bump the version, commit, push
 make check
-make tag PLUGIN=halftone MSG="Line screen added"
-git push origin halftone-0.2.0
+make release PLUGIN=halftone MSG="Line screen added"   # tags halftone-0.2.0 and pushes it
 # wait for the Release plugin workflow, then
 # review and merge its "Index halftone-0.2.0" pull request, then
 git pull                      # brings back the plugins.json commit
@@ -39,32 +38,61 @@ Artwork Creator ◄── fetches plugins.json ─────────┘
 - **`site/`** is the rest of the Pages site: `index.html`, a page that lists the plugins
   and their versions, at `https://bzhmaddog.github.io/artwork-creator-plugins/`. It has no
   data of its own: its script, `index.js`, fetches the published `plugins.json` and builds a card per
-  plugin, so it needs no change when a version is released.
+  plugin, so it needs no change when a version is released. Its select of app versions
+  marks the plugin versions an app can't use. Its `apps.json` is made by the Pages workflow
+  (`scripts/app_versions.py`) from the app's release tags: each one's plugin SDK version and
+  the library ABI versions it loads. The workflow also runs daily, so a new app release
+  shows up within a day (run it by hand for sooner); `make serve` makes it from the app
+  checkout next to this one, with a "Current" item first: that checkout's files as they
+  are, unreleased SDK changes included.
 - **Releases** hold the files. With release immutability on, a published release, its files
   and its tag can't change, so a URL in `plugins.json` always serves the bytes its hash
   describes.
 
 [The Release workflow](release-workflow.md) details each job and where its data comes from.
 
-## One-time setup
+## Prerequisites
 
-On GitHub, in the repository's settings:
+### To build and test
 
-1. *General > Releases*: turn on **release immutability**.
+Install these yourself:
+
+- [rustup](https://rustup.rs) (Rust).
+- Python 3.11 or later.
+- Node.js 18 or later, for `make duplication` (`npx jscpd`), which `make check` runs.
+- MinGW, the linker of the Windows build (`make windows`, `make dist`), a system
+  package: `sudo apt install gcc-mingw-w64-x86-64`.
+
+Then `make install` adds everything else, and can be run again at any time: the Rust
+targets (Linux, Windows) and components (rustfmt, clippy, llvm-tools), cargo-zigbuild
+and cargo-llvm-cov, zig in `.tools/` (for `make linux-portable`), a `.venv` with
+`requirements-dev.txt` and the Python plugins' dependencies, jscpd, and the git hooks. It
+stops without rustup or Python; without Node.js or MinGW it says so and goes on.
+
+Optional: the app checked out next to this repository (`../artwork-creator-app`). Then
+`make install` builds the Rust plugins against its plugin SDK (`make sdk-local`, see
+[Working with an SDK that isn't released yet](#working-with-an-sdk-that-isnt-released-yet)),
+and `make serve`'s page lists its app versions, with its working tree as "Current".
+
+### To publish
+
+Locally, only git with push access to the repository: `make release` pushes a tag, and
+the rest runs on GitHub.
+
+On GitHub, once, in the repository's settings:
+
+1. *General > Releases*: turn on **release immutability**, so a published release, its
+   files and its tag can't be changed or moved.
 2. *Actions > General > Workflow permissions*: **Read and write permissions**, so the
    workflow can create releases and push its `index/<tag>` branch, and tick **Allow
    GitHub Actions to create and approve pull requests**, so it can open the pull request
-   that adds the version to `plugins.json`. `main` itself can stay protected: the
-   workflow never pushes to it. A ruleset must not cover `index/*` branches, or the
-   workflow can't push them.
+   that adds the version to `plugins.json` (with `GITHUB_TOKEN`). `main` itself can stay
+   protected: the workflow never pushes to it. A ruleset must not cover `index/*`
+   branches, or the workflow can't push them.
 3. *Pages*: **Source** set to **GitHub Actions**, for the Pages workflow. It starts by
    itself when `plugins.json` or the workflow changes on `main`; if Pages was enabled
    after that, run it once by hand (*Actions > Pages > Run workflow*). Check that
    `https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json` serves the index.
-
-Locally: `cargo` and `python3` (3.11+). For `make windows`, the
-`x86_64-pc-windows-gnu` target and MinGW. For `make linux-portable`, zig and
-cargo-zigbuild. See the top of the `Makefile`.
 
 ## Adding a new plugin
 
@@ -116,7 +144,7 @@ cargo-zigbuild. See the top of the `Makefile`.
    for `en-GB` and `fr-FR` (the app's other languages), complete or not:
    - **Rust**: `plugins/<id>/locales/fr-FR.json` and the like, passed to
      `export_plugin!(..., translations: [("fr-FR", include_str!("../locales/fr-FR.json")),
-     ...])`; a test that `artwork_plugin_sdk::untranslated(..)` of each is empty tells
+     ...])`, every file of `locales/` listed (`make validate` checks it); a test that `artwork_plugin_sdk::untranslated(..)` of each is empty tells
      what one lacks (see `plugins/noise/src/tests.rs`), for a plugin that wants them
      complete.
    - **Python**: a `TRANSLATIONS = {"fr-FR": {...}, ...}` dict passed to
@@ -128,7 +156,8 @@ cargo-zigbuild. See the top of the `Makefile`.
    the effects' and generators' names, a release copies these into its version's `texts`
    in `plugins.json` (those that differ from the English ones), so that the app shows
    them in its language in the plugin manager, and names a missing effect or generator in
-   it before the plugin is installed. A text a catalog leaves out shows in English.
+   it before the plugin is installed. A text a catalog leaves out shows in English, but
+   `make validate` requires the `name` and `description` in each catalog there is.
 
    Translations need plugin SDK 0.6.0: a Rust plugin built with it has ABI version 3,
    which only apps from that SDK on load; a Python plugin needs `"sdk": ">=0.6.0"` and
@@ -203,8 +232,11 @@ cargo-zigbuild. See the top of the `Makefile`.
    plugin manager, so write it for users:
 
    ```sh
-   make tag PLUGIN=halftone MSG="Line screen added"
+   make release PLUGIN=halftone MSG="Line screen added"
    ```
+
+   `make release` does this step and the next: `make tag`, then the push. To look at the
+   tag before it goes up, run `make tag PLUGIN=halftone MSG="..."` alone, then step 5.
 
    This runs the workflow's first checks locally (`make validate`, and that the version
    isn't released yet), then creates the annotated tag `halftone-0.2.0`. The workflow
@@ -212,7 +244,7 @@ cargo-zigbuild. See the top of the `Makefile`.
    whose manifest and code disagree (name, version, effects, generators) or whose details
    differ from `plugins.json` publishes nothing. Without make:
    `git tag -a halftone-0.2.0 -m "Line screen added"`.
-5. **Push the tag**. This starts the release:
+5. **Push the tag** (`make release` has done it). This starts the release:
 
    ```sh
    git push origin halftone-0.2.0
@@ -226,8 +258,11 @@ cargo-zigbuild. See the top of the `Makefile`.
    0.19.0, which read `plugins.json` on `main`, see it.
 8. **`git pull`** to get the merge before your next change.
 
-Several plugins can be released at once. Each tag runs its own workflow, and their
-`plugins.json` commits go in one after another.
+Several plugins can be released at once: one `make release` each, or their tags pushed
+one at a time. Each tag runs its own workflow, and their `plugins.json` commits go in one
+after another. Don't push more than three tags in one `git push`: GitHub then starts no
+workflow for any of them, and pushing them again does nothing, as they are already there
+(delete them on GitHub with `git push --delete origin <tag> ...`, then push them again).
 
 ## Trying plugins before a release
 
@@ -276,7 +311,7 @@ again:
 ```sh
 git push --delete origin halftone-0.2.0
 git tag -d halftone-0.2.0
-# fix, commit, push, then make tag ... and git push origin halftone-0.2.0 again
+# fix, commit, push, then make release ... again
 ```
 
 A leftover draft is replaced on the next run. For a passing hiccup (a download timed

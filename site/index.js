@@ -13,6 +13,13 @@ const PUBLISHED_INDEX = "https://bzhmaddog.github.io/artwork-creator-plugins/plu
 const DEFAULT_INDEX = location.protocol === "file:" ? PUBLISHED_INDEX : new URL("plugins.json", location.href).href;
 const DEFAULT_TITLE = document.title;
 
+// The app versions the select offers (apps.json: the Pages workflow makes it from the
+// app's release tags with scripts/app_versions.py, make serve from the app checkout next
+// to this one), from the same place as the page, or the published one when the page is
+// opened from disk.
+const PUBLISHED_APPS = "https://bzhmaddog.github.io/artwork-creator-plugins/apps.json";
+const APPS = location.protocol === "file:" ? PUBLISHED_APPS : new URL("apps.json", location.href).href;
+
 const KINDS = { python: "Python", library: "Native library" };
 const KIND_BADGES = { python: "text-bg-primary", library: "text-bg-warning" };
 function el(tag, attrs, ...children) {
@@ -75,7 +82,26 @@ function settingsCompatibility(v, isOldest) {
   return el("span", { class: "text-body-secondary" }, "Reads settings from v" + v.compatible_from + " on");
 }
 
-function versionItem(v, isLatest, isOldest) {
+// Each version shown, with its plugin's kind, to mark those the chosen app can't use.
+let versionNodes = [];
+
+// How long ago a date (YYYY-MM-DD) was, in words: "today", "yesterday", "3 days ago",
+// "last month"... The date itself when it can't be read.
+function ago(date) {
+  const [y, m, d] = String(date).split("-").map(Number);
+  const then = new Date(y, m - 1, d);
+  if (Number.isNaN(then.getTime())) return date;
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const days = Math.round((then - today) / 86400000);
+  const words = new Intl.RelativeTimeFormat("en", { numeric: "auto" });
+  if (Math.abs(days) < 7) return words.format(days, "day");
+  if (Math.abs(days) < 30) return words.format(Math.round(days / 7), "week");
+  if (Math.abs(days) < 365) return words.format(Math.round(days / 30), "month");
+  return words.format(Math.round(days / 365), "year");
+}
+
+function versionItem(v, isLatest, isOldest, plugin) {
   const requirements = requirementsText(v);
   const settings = settingsCompatibility(v, isOldest);
   let compatibility = null;
@@ -84,25 +110,122 @@ function versionItem(v, isLatest, isOldest) {
       requirements ? el("span", { class: "text-body-secondary" }, requirements) : null,
       settings);
   }
-  return el("div", { class: "version py-2" },
-    el("div", { class: "d-flex justify-content-between align-items-baseline gap-2" },
-      el("div", {},
-        el("strong", {}, v.version),
-        isLatest ? el("span", { class: "badge text-bg-success ms-2" }, "latest") : null),
-      v.released ? el("small", { class: "text-body-secondary" }, v.released) : null),
+  const incompatible = el("span", { class: "badge text-bg-danger ms-2", hidden: "" });
+  const best = el("span", { class: "badge text-bg-success ms-2", hidden: "" });
+  const node = el("div", { class: "version py-2" },
+    el("div", {},
+      el("strong", {}, v.version),
+      isLatest ? el("span", { class: "badge text-bg-success ms-2" }, "latest") : null,
+      incompatible,
+      best,
+      v.released ? el("small", { class: "text-body-secondary ms-2", title: v.released }, "published " + ago(v.released)) : null),
     v.changes ? el("p", { class: "mb-0" }, v.changes) : null,
     compatibility);
+  versionNodes.push({ node, incompatible, best, v, plugin, isLatest });
+  return node;
+}
+
+// Below zero when version a is before b, zero when they're the same, above when after.
+function compareVersionStrings(a, b) {
+  const pa = String(a).split(/[.+-]/).map(Number);
+  const pb = String(b).split(/[.+-]/).map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+    const d = (pa[i] || 0) - (pb[i] || 0);
+    if (d) return d;
+  }
+  return 0;
 }
 
 // Versions newest first, whatever their order in the file.
 function compareVersions(a, b) {
-  const pa = String(a.version).split(/[.+-]/).map(Number);
-  const pb = String(b.version).split(/[.+-]/).map(Number);
-  for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
-    const d = (pb[i] || 0) - (pa[i] || 0);
-    if (d) return d;
+  return compareVersionStrings(b.version, a.version);
+}
+
+// Whether version meets a requirement in Cargo's syntax (">=0.4.0", ">=0.17, <0.20"; a
+// bare version is "^" as in Cargo). No requirement is met by every version.
+function meets(requirement, version) {
+  if (!requirement) return true;
+  return requirement.split(",").every((part) => {
+    const [, op, wanted] = part.trim().match(/^(>=|<=|>|<|=|\^|~)?\s*(.*)$/);
+    const d = compareVersionStrings(version, wanted);
+    const [major, minor] = wanted.split(".").map(Number);
+    const [vMajor, vMinor] = version.split(".").map(Number);
+    switch (op) {
+      case ">=": return d >= 0;
+      case ">": return d > 0;
+      case "<=": return d <= 0;
+      case "<": return d < 0;
+      case "=": return d === 0;
+      case "~": return d >= 0 && vMajor === major && (minor === undefined || vMinor === minor);
+      default: return d >= 0 && vMajor === major && (major !== 0 || vMinor === minor);
+    }
+  });
+}
+
+// Whether the app (an entry of apps.json) can use version v of a plugin of that kind, as
+// the app decides: its app and SDK requirements (engines, else min_app and sdk, each that
+// version or later) and, for a library, its ABI.
+function usableBy(app, v, kind) {
+  const orLater = (version) => (version ? ">=" + version : null);
+  if (!meets(v.engines?.app || orLater(v.min_app), app.version)) return false;
+  if (kind === "python") return meets(v.engines?.sdk || orLater(v.sdk), app.sdk);
+  const abi = v.abi ?? 1;
+  return abi >= app.abi[0] && abi <= app.abi[1];
+}
+
+// Marks the versions the app chosen in the select can't use, and shows the newest one it
+// can use under the latest when that one isn't it.
+function applyApp() {
+  const select = document.getElementById("app");
+  const app = select.hidden ? null : select.selectedOptions[0]?.app;
+  const usable = new Set();
+  let latestNode = null;
+  // versionNodes are newest first within each plugin, so the first usable one is the
+  // newest the app can use. When it isn't the latest, it leaves the other versions to
+  // show under the latest; the others go back there, in order.
+  for (const { node, incompatible, best, v, plugin, isLatest, other } of versionNodes) {
+    const bad = Boolean(app) && !usableBy(app, v, plugin.kind);
+    node.classList.toggle("incompatible", bad);
+    incompatible.hidden = !bad;
+    incompatible.textContent = bad ? "Not compatible with " + (app.label || app.version) : "";
+    const newest = Boolean(app) && !bad && !usable.has(plugin.id) && !isLatest;
+    best.hidden = !newest;
+    best.textContent = newest ? "Latest for " + (app.label || app.version) : "";
+    if (isLatest) latestNode = node;
+    else if (newest && latestNode) latestNode.after(node);
+    else other?.append(node);
+    if (!bad) usable.add(plugin.id);
   }
-  return 0;
+  // A plugin is compatible when the app can use one of its versions.
+  for (const c of document.querySelectorAll("#plugins .plugin")) {
+    c.dataset.compatible = usable.has(c.id) ? "yes" : "no";
+  }
+  applyFilter();
+}
+
+// The select of app versions, newest first and chosen; hidden when apps.json can't be read.
+async function appSelect() {
+  const select = document.getElementById("app");
+  try {
+    const response = await fetch(APPS, { cache: "no-cache" });
+    if (!response.ok) throw new Error("HTTP " + response.status);
+    // Newest first, as the file lists them; served locally, "Current" (the app
+    // checkout as it is) comes first.
+    const apps = (await response.json())?.apps || [];
+    if (!apps.length) return;
+    select.replaceChildren(...apps.map((app) => {
+      const option = el("option", {}, app.label || "App " + app.version);
+      option.app = app;
+      return option;
+    }));
+    select.hidden = false;
+    select.addEventListener("change", applyApp);
+    const onlyCompatible = document.getElementById("only-compatible");
+    onlyCompatible.parentElement.hidden = false;
+    onlyCompatible.addEventListener("change", applyFilter);
+  } catch (e) {
+    console.warn("app versions:", e);
+  }
 }
 
 // The effects and generators of the latest version, as a table: one row each, with the
@@ -120,7 +243,8 @@ function providesTable(latest, versions) {
       rows.push(el("tr", {},
         el("td", {}, name),
         el("td", {}, el("span", { class: "badge " + (key === "effects" ? "text-bg-info" : "text-bg-light") }, type)),
-        el("td", { class: "text-body-secondary text-end" }, since ? "since v" + since.version : "")));
+        el("td", { class: "text-body-secondary text-end" }, since ? "v" + since.version : ""),
+        el("td", {})));
     }
   }
   if (!rows.length) return null;
@@ -128,7 +252,8 @@ function providesTable(latest, versions) {
     el("thead", {}, el("tr", {},
       el("th", { scope: "col" }, "Name"),
       el("th", { scope: "col" }, "Type"),
-      el("th", { scope: "col", class: "text-end" }, "Added in"))),
+      el("th", { scope: "col", class: "text-end" }, "Added in"),
+      el("th", {}))),
     el("tbody", {}, ...rows));
 }
 
@@ -152,21 +277,22 @@ function card(p) {
   const oldest = versions.at(-1);
 
   const provides = providesTable(latest, versions);
+  const other = others.length
+    ? el("details", { class: "card-footer other" },
+        el("summary", { class: "text-uppercase text-body-secondary small fw-semibold py-1" },
+          "Other versions (" + others.length + ")"),
+        ...others.map((v) => versionItem(v, false, v === oldest, p)))
+    : null;
+  // Where applyApp puts a version back when it isn't the newest one the app can use.
+  for (const entry of versionNodes) if (entry.plugin === p) entry.other = other;
   const node = el("article", { class: "card mb-3 plugin", id: p.id },
     el("div", { class: "card-body" },
-      el("div", { class: "d-flex justify-content-between align-items-baseline gap-2" },
-        el("h2", { class: "card-title h5 mb-1" }, p.name || p.id),
-        latest ? el("span", { class: "text-body-secondary" }, "v" + latest.version) : null),
+      el("h2", { class: "card-title h5 mb-1" }, p.name || p.id),
       p.description ? el("p", { class: "card-text mb-2" }, p.description) : null,
       el("div", { class: "d-flex flex-wrap align-items-center gap-2 mb-2" }, ...badges(p)),
       provides,
-      latest ? versionItem(latest, true, latest === oldest) : null),
-    others.length
-      ? el("details", { class: "card-footer previous" },
-          el("summary", { class: "text-uppercase text-body-secondary small fw-semibold py-1" },
-            "Previous versions (" + others.length + ")"),
-          ...others.map((v) => versionItem(v, false, v === oldest)))
-      : null);
+      latest ? versionItem(latest, true, latest === oldest, p) : null),
+    other);
 
   // Text the filter searches.
   node.dataset.search = [p.id, p.name, p.description, p.author, p.kind, ...(latest?.effects || []), ...(latest?.generators || [])]
@@ -176,12 +302,24 @@ function card(p) {
 
 function applyFilter() {
   const query = document.getElementById("filter").value.trim().toLowerCase();
+  const onlyCompatible = document.getElementById("only-compatible").checked;
   const cards = document.querySelectorAll("#plugins .plugin");
   let shown = 0;
   for (const c of cards) {
-    const match = !query || c.dataset.search.includes(query);
+    const match = (!query || c.dataset.search.includes(query))
+      && !(onlyCompatible && c.dataset.compatible === "no");
     c.classList.toggle("d-none", !match);
     if (match) shown++;
+    // With only compatible plugins, the versions the app can't use are hidden too.
+    for (const v of c.querySelectorAll(".version")) {
+      v.classList.toggle("d-none", onlyCompatible && v.classList.contains("incompatible"));
+    }
+    const other = c.querySelector("details.other");
+    if (other) {
+      const shownOther = other.querySelectorAll(".version:not(.d-none)").length;
+      other.querySelector("summary").textContent = "Other versions (" + shownOther + ")";
+      other.classList.toggle("d-none", !shownOther);
+    }
   }
   document.getElementById("count").textContent =
     shown === cards.length ? cards.length + " plugins" : shown + " of " + cards.length + " plugins";
@@ -196,6 +334,7 @@ async function load(url) {
   const status = document.getElementById("status");
   const list = document.getElementById("plugins");
   list.replaceChildren();
+  versionNodes = [];
   document.getElementById("count").textContent = "";
   document.getElementById("title").textContent = DEFAULT_TITLE;
   document.title = DEFAULT_TITLE;
@@ -217,7 +356,7 @@ async function load(url) {
     const plugins = [...index.plugins].sort((a, b) => String(a.name || a.id).localeCompare(String(b.name || b.id)));
     list.append(...plugins.map(card));
     status.hidden = true;
-    applyFilter();
+    applyApp();
   } catch (e) {
     if (id !== currentLoad) return;
     status.className = "alert alert-danger";
@@ -264,7 +403,7 @@ function sourceSelect(sources) {
 
 async function main() {
   document.getElementById("filter").addEventListener("input", applyFilter);
-  const sources = await indexSources();
+  const [sources] = await Promise.all([indexSources(), appSelect()]);
   await load(sources ? sourceSelect(sources) : DEFAULT_INDEX);
 }
 

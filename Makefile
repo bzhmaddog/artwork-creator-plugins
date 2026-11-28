@@ -2,9 +2,8 @@
 # like the app's Makefile. The Release workflow (.github/workflows/release.yml) builds a plugin's
 # Linux file with make install-zig install-zigbuild and make linux-portable PACKAGE=<package>.
 #
-# Needs rustup (https://rustup.rs), python3 (3.11+) and Node.js 18+ (https://nodejs.org: npx,
-# for jscpd in make duplication); make install adds the rest, except MinGW for the Windows build, a system
-# package (sudo apt install gcc-mingw-w64-x86-64).
+# Prerequisites: docs/publishing.md#prerequisites (rustup, python3 3.11+, Node.js 18+, MinGW);
+# make install adds the rest.
 #
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
@@ -43,6 +42,8 @@
 #   make sdk-github   back to the SDK from GitHub
 #   make tag PLUGIN=halftone MSG="Line screen added"
 #                     tag the plugin's current version for release (pushing it releases)
+#   make release PLUGIN=halftone MSG="Line screen added"
+#                     make tag, then push the tag: releases it
 #   make clean        remove build outputs
 
 CARGO   ?= cargo
@@ -77,7 +78,7 @@ PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
 .PHONY: sdk-local sdk-github
-.PHONY: all install install-rust install-zig install-zigbuild install-python install-jscpd lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint duplication hooks pre-commit fmt clippy tag clean
+.PHONY: all install install-rust install-zig install-zigbuild install-python install-jscpd lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint duplication hooks pre-commit fmt clippy tag release clean
 
 all: linux windows
 
@@ -109,10 +110,10 @@ install-zig:
 	  tar -xJf .tools/zig.tar.xz -C .tools && rm .tools/zig.tar.xz; fi
 
 # jscpd for make duplication, fetched once into npx's cache (Node.js 18+ is needed first).
+# Only make duplication needs Node.js: without it, a note, and make install goes on.
 install-jscpd:
-	@node -e 'process.exit(parseInt(process.versions.node) < 18 ? 1 : 0)' 2>/dev/null || \
-	  { echo "Node.js 18+ is needed first (for make duplication): https://nodejs.org"; exit 1; }
-	$(JSCPD) --version
+	@if node -e 'process.exit(parseInt(process.versions.node) < 18 ? 1 : 0)' 2>/dev/null; then $(JSCPD) --version; \
+	  else echo "note: Node.js 18+ not found; make duplication (and make check) needs it: https://nodejs.org"; fi
 
 install-python:
 	@$(BOOTSTRAP_PYTHON) -c 'import sys; sys.exit(sys.version_info < (3, 11))' || \
@@ -267,6 +268,11 @@ tag:
 	  $(INDEX) resolve "$$tag" >/dev/null && \
 	  git tag -a "$$tag" -m "$(MSG)" && \
 	  echo "Tagged $$tag. Release it with: git push origin $$tag"
+
+# make tag, then push that tag on its own, which starts the Release workflow. One tag per
+# push: GitHub starts no workflow for a push of more than three tags.
+release: tag
+	git push origin "$(PLUGIN)-$$($(INDEX) version $(PLUGIN))"
 
 clean:
 	$(CARGO) clean
