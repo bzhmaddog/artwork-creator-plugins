@@ -2,15 +2,15 @@
 # like the app's Makefile. The Release workflow (.github/workflows/release.yml) builds a plugin's
 # Linux file with make install-zig install-zigbuild and make linux-portable PACKAGE=<package>.
 #
-# Needs rustup (https://rustup.rs), python3 (3.11+) and Node.js 18+ (npx, for jscpd in make
-# duplication); make install adds the rest, except MinGW for the Windows build, a system
+# Needs rustup (https://rustup.rs), python3 (3.11+) and Node.js 18+ (https://nodejs.org: npx,
+# for jscpd in make duplication); make install adds the rest, except MinGW for the Windows build, a system
 # package (sudo apt install gcc-mingw-w64-x86-64).
 #
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
 #                     components, cargo-zigbuild and cargo-llvm-cov, zig in .tools/, a .venv
-#                     with requirements-dev.txt and the Python plugins' dependencies, the
-#                     git hooks, and the local app's SDK when there is one (sdk-local)
+#                     with requirements-dev.txt and the Python plugins' dependencies, jscpd
+#                     (in npx's cache), the git hooks, and the local app's SDK when there is one (sdk-local)
 #   make              build every Rust plugin for Linux and Windows (all)
 #   make linux        build for Linux, against this machine's glibc
 #   make linux-portable  build for Linux against glibc GLIBC, like the released files (one
@@ -77,12 +77,12 @@ PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
 .PHONY: sdk-local sdk-github
-.PHONY: all install install-rust install-zig install-zigbuild install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint duplication hooks pre-commit fmt clippy tag clean
+.PHONY: all install install-rust install-zig install-zigbuild install-python install-jscpd lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint duplication hooks pre-commit fmt clippy tag clean
 
 all: linux windows
 
 # Safe to run again: each step skips or updates what's already there.
-install: install-rust install-zig install-python
+install: install-rust install-zig install-python install-jscpd
 	@if [ -d .git ]; then .venv/bin/python -m pre_commit install; fi
 	@# The local app's SDK when there is one (and none was chosen yet): see sdk-local.
 	@if [ -f $(SDK_PATH)/Cargo.toml ] && [ ! -f .cargo/config.toml ]; then $(MAKE) --no-print-directory sdk-local; \
@@ -107,6 +107,12 @@ install-zig:
 	    https://ziglang.org/download/$(ZIG_VERSION)/zig-x86_64-linux-$(ZIG_VERSION).tar.xz && \
 	  echo "$(ZIG_SHA256)  .tools/zig.tar.xz" | sha256sum -c - && \
 	  tar -xJf .tools/zig.tar.xz -C .tools && rm .tools/zig.tar.xz; fi
+
+# jscpd for make duplication, fetched once into npx's cache (Node.js 18+ is needed first).
+install-jscpd:
+	@node -e 'process.exit(parseInt(process.versions.node) < 18 ? 1 : 0)' 2>/dev/null || \
+	  { echo "Node.js 18+ is needed first (for make duplication): https://nodejs.org"; exit 1; }
+	$(JSCPD) --version
 
 install-python:
 	@$(BOOTSTRAP_PYTHON) -c 'import sys; sys.exit(sys.version_info < (3, 11))' || \
@@ -200,7 +206,8 @@ coverage-new:
 # alone, so what they have in common is copied on purpose, and SonarQube Cloud leaves
 # plugins/ out of its duplication check (sonar.cpd.exclusions), which spans the whole
 # repository. The 3 % is SonarQube Cloud's gate on new code.
-JSCPD ?= npx --yes jscpd@5.4.3
+JSCPD_VERSION := 5.4.3
+JSCPD ?= npx --yes jscpd@$(JSCPD_VERSION)
 
 duplication:
 	@for d in plugins/*/; do \

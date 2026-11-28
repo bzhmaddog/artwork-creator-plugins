@@ -1,6 +1,6 @@
 # Checks every change: the manifests and plugins.json, the Python plugins compile, the
 # tests pass (the scripts' and plugins'), the Python code is linted and type-checked, no
-# plugin copies its own code (make duplication), and
+# plugin copies its own code (the Duplication job, make duplication), and
 # the Rust plugins build for Linux and Windows; the Coverage job reports the tests' coverage
 # and runs the SonarQube Cloud analysis (sonar-project.properties) with it.
 name: CI
@@ -44,7 +44,13 @@ jobs:
       # mypy checks the plugins against their dependencies' types.
       - run: python3 -m pip install $(python3 scripts/plugin_index.py dependencies)
       - run: make lint PYTHON=python3
-      # jscpd, through npx: each plugin on its own (see the Makefile).
+
+  duplication:
+    name: Duplication
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # jscpd, through npx: each plugin on its own (see make duplication in the Makefile).
       - uses: actions/setup-node@v4
         with:
           node-version: "22"
