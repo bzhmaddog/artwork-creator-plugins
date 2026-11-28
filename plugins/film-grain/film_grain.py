@@ -20,6 +20,8 @@ class FilmGrain(Effect):
     id = "pygrain.grain"
     name = "Film grain"
     description = "Random noise, like the grain of film (Python plugin using numpy)"
+    # It changes colors, not shapes: a shape's stroke and a text's outline stay out of it.
+    fill_only = True
     params = [
         int_param("amount", "Amount", 0, 100, 20, unit=" %"),
         float_param("size", "Grain size", 1, 8, 1, unit=" px", decimals=1, role="size"),
@@ -95,4 +97,4 @@ TRANSLATIONS = {
     },
 }
 
-plugin = Plugin("Film grain", "1.1.0", effects=[FilmGrain()], translations=TRANSLATIONS)
+plugin = Plugin("Film grain", "1.2.0", effects=[FilmGrain()], translations=TRANSLATIONS)
