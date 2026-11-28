@@ -2,8 +2,14 @@
   "Checkerboard": "Damier",
   "Squares of the two colors in turn": "Carrés des deux couleurs en alternance",
   "Square size": "Taille des cases",
+  "Squares": "Cases",
+  "By size": "Par taille",
+  "By count": "Par nombre",
+  "Squares across": "Cases en largeur",
   "Color 1": "Couleur 1",
   "Color 2": "Couleur 2",
   "Angle": "Angle",
+  "X offset": "Décalage X",
+  "Y offset": "Décalage Y",
   "Squares of two colors in turn, as a shape fill": "Carrés de deux couleurs en alternance, pour remplir une forme"
 }

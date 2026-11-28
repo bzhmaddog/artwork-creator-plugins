@@ -56,3 +56,47 @@ fn same_picture_at_any_resolution() {
     }
     assert!(differ <= 1);
 }
+
+#[test]
+fn offset_shifts_the_squares() {
+    // 4 px per mm, squares of 10 mm (40 px): half a square right is 20 px.
+    let none = run(DEFAULTS, 120, 40, 4.0);
+    let right = run(
+        r##"{"size": 10, "color1": "#000000ff", "color2": "#ffffffff", "angle": 0, "offset_x": 50, "offset_y": 0}"##,
+        120,
+        40,
+        4.0,
+    );
+    let red = |px: &[u8], x: usize, y: usize| px[(y * 120 + x) * 4];
+    for y in [5, 20, 35] {
+        for x in 25..115 {
+            if (x - 20) % 40 > 2 && (x - 20) % 40 < 38 {
+                assert_eq!(red(&right, x, y), red(&none, x - 20, y), "{x} {y}");
+            }
+        }
+    }
+}
+
+#[test]
+fn a_project_saved_before_the_offsets_is_unchanged() {
+    let zero = r##"{"size": 10, "color1": "#000000ff", "color2": "#ffffffff", "angle": 0, "offset_x": 0, "offset_y": 0}"##;
+    assert_eq!(run(DEFAULTS, 64, 64, 4.0), run(zero, 64, 64, 4.0));
+}
+
+#[test]
+fn by_count_fills_the_width_with_that_many_squares() {
+    // 4 squares across 100 px: color changes every 25 px along a row.
+    let px = run(
+        r##"{"sizing": "count", "size": 10, "count": 4, "color1": "#000000ff", "color2": "#ffffffff", "angle": 0}"##,
+        100,
+        30,
+        1.0,
+    );
+    let row: Vec<bool> = (0..100).map(|x| px[(10 * 100 + x) * 4] < 128).collect();
+    let changes = row.windows(2).filter(|w| w[0] != w[1]).count();
+    assert_eq!(changes, 3, "{row:?}");
+    for x in [2, 27, 52, 77] {
+        assert_eq!(row[x], row[x + 20], "{x}");
+        assert_ne!(row[x], row[(x + 25) % 100], "{x}");
+    }
+}

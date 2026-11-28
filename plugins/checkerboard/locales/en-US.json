@@ -2,8 +2,14 @@
   "Checkerboard": "Checkerboard",
   "Squares of the two colors in turn": "Squares of the two colors in turn",
   "Square size": "Square size",
+  "Squares": "Squares",
+  "By size": "By size",
+  "By count": "By count",
+  "Squares across": "Squares across",
   "Color 1": "Color 1",
   "Color 2": "Color 2",
   "Angle": "Angle",
+  "X offset": "X offset",
+  "Y offset": "Y offset",
   "Squares of two colors in turn, as a shape fill": "Squares of two colors in turn, as a shape fill"
 }
