@@ -14,6 +14,8 @@ class SwapChannels(Effect):
     id = "pyswap.swap"
     name = "Swap channels"
     description = "Swap two color channels (Python example plugin)"
+    # It changes colors, not shapes: a shape's stroke and a text's outline stay out of it.
+    fill_only = True
     params = [
         choice_param(
             "pair",
@@ -62,4 +64,4 @@ TRANSLATIONS = {
     },
 }
 
-plugin = Plugin("Swap channels", "1.1.0", effects=[SwapChannels()], translations=TRANSLATIONS)
+plugin = Plugin("Swap channels", "1.2.0", effects=[SwapChannels()], translations=TRANSLATIONS)

@@ -13,6 +13,9 @@ class DeclaredTest(unittest.TestCase):
     def test_names(self):
         self.assertEqual([e.name for e in swap_channels.plugin.effects], ["Swap channels"])
 
+    def test_leaves_strokes_out(self):
+        self.assertTrue(swap_channels.SwapChannels.fill_only)
+
 
 class SwapChannelsTest(unittest.TestCase):
     def test_pairs(self):

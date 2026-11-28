@@ -6,11 +6,11 @@
   "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/swap-channels",
   "license": "MIT",
   "kind": "python",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "script": "swap_channels.py",
   "engines": {
-    "app": ">=0.21.0",
-    "sdk": ">=0.6.0"
+    "app": ">=0.22.0",
+    "sdk": ">=0.7.0"
   },
   "effects": [
     "Swap channels"
