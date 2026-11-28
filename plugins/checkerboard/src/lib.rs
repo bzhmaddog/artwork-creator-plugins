@@ -24,6 +24,13 @@ fn colors(a: [u8; 4], b: [u8; 4]) -> [Param; 2] {
     ]
 }
 
+/// A pattern offset, as a share of the square size.
+fn offset(id: &str, label: &str) -> Param {
+    Param::float(id, label, -100.0, 100.0, 0.0)
+        .unit(" %")
+        .decimals(0)
+}
+
 fn angle() -> Param {
     Param::float("angle", "Angle", -180.0, 180.0, 0.0)
         .unit("°")
@@ -47,23 +54,50 @@ impl Generator for Checkerboard {
     }
 
     fn params(&self) -> Vec<Param> {
-        let mut params = vec![mm("size", "Square size", 0.2, 200.0, 10.0)];
+        let mut params = vec![
+            Param::choice(
+                "sizing",
+                "Squares",
+                &[("size", "By size"), ("count", "By count")],
+                "size",
+            ),
+            mm("size", "Square size", 0.2, 200.0, 10.0),
+            Param::int("count", "Squares across", 1, 200, 8),
+        ];
         params.extend(colors(BLACK, WHITE));
         params.push(angle());
+        params.extend([
+            offset("offset_x", "X offset"),
+            offset("offset_y", "Y offset"),
+        ]);
         params
     }
 
     fn generate(&self, img: &mut Image, v: &Values, px_per_mm: f32) -> Result<(), String> {
-        let size = v.f32("size").max(1e-3);
+        // By count: as many squares as asked fill the width exactly. By size in a project
+        // saved before there was this choice.
+        let size = if v.choice("sizing") == "count" {
+            img.width() as f32 / px_per_mm.max(1e-6) / v.i32("count").max(1) as f32
+        } else {
+            v.f32("size")
+        }
+        .max(1e-3);
         let (a, b, deg) = (v.color("color1"), v.color("color2"), v.f32("angle"));
         let px = 1.0 / (px_per_mm * size);
+        let (ox, oy) = (shift(v, "offset_x") * size, shift(v, "offset_y") * size);
         fill(img, px_per_mm, |x, y| {
-            let (u, w) = turned(x, y, deg);
+            let (u, w) = turned(x - ox, y - oy, deg);
             let t = 0.5 - 0.5 * square_wave(u / size, px) * square_wave(w / size, px);
             mix(a, b, t)
         });
         Ok(())
     }
+}
+
+/// A pattern offset, as a share of the square size; none (0) in a project saved before
+/// there were offsets.
+fn shift(v: &Values, key: &str) -> f32 {
+    (v.f32(key) / 100.0).clamp(-1.0, 1.0)
 }
 
 /// `a` mixed with `t` of `b`, straight RGBA.
