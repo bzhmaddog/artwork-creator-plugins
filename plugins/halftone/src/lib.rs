@@ -62,16 +62,22 @@ impl Effect for Halftone {
 
     fn params(&self) -> Vec<Param> {
         let mut params = vec![
-            Param::float("size", "Dot spacing", 2.0, 100.0, 8.0)
+            Param::float("size", "Dot spacing", 2.0, 100.0, 16.0)
                 .unit(" px")
                 .role(Role::Size),
         ];
-        params.extend(screen(0.0, 100.0));
+        params.extend(screen(0.0, 85.0));
         params.push(Param::choice(
             "style",
             "Dots",
             &[("ink", "One ink"), ("color", "Image colors")],
             "ink",
+        ));
+        params.push(Param::choice(
+            "between",
+            "Between the dots",
+            &[("paper", "Paper"), ("nothing", "Nothing")],
+            "paper",
         ));
         params.extend(colors([255, 255, 255, 255]));
         params
@@ -88,6 +94,9 @@ impl Effect for Halftone {
             .map_or(1.0, |x| (x as f32 / 100.0).clamp(0.0, 1.0));
         let (sin, cos) = v.f32("angle").to_radians().sin_cos();
         let one_ink = v.choice("style") != "color";
+        // Paper and ink over the image, or only the ink; the paper in a project saved
+        // before there was this choice.
+        let no_paper = v.choice("between") == "nothing";
         let ink = v.color("ink").map(|c| c as f32);
         let paper = v.color("paper").map(|c| c as f32);
         let (w, h) = (img.width() as f32, img.height() as f32);
@@ -181,8 +190,10 @@ impl Effect for Halftone {
                     }
                 }
                 // Paper and dots over the image the effect gets: where they are not
-                // opaque it shows through. The shape's own opacity stays.
-                let (pa, ca) = (paper[3] / 255.0, color[3] / 255.0);
+                // opaque it shows through. The shape's own opacity stays. Without paper:
+                // the image as it came between the dots.
+                let pa = if no_paper { 0.0 } else { paper[3] / 255.0 };
+                let ca = color[3] / 255.0;
                 let la = pa + (ca - pa) * cover;
                 for k in 0..3 {
                     let out = paper[k] * pa

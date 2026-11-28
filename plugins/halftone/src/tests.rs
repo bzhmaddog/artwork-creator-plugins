@@ -109,21 +109,53 @@ fn filled(px: [u8; 4], w: u32, h: u32) -> Vec<u8> {
 const INK: &str =
     r##""size": 8, "angle": 0, "style": "ink", "ink": "#000000ff", "paper": "#ffffffff""##;
 
-#[test]
-fn the_image_shows_through_transparent_paper() {
-    let gray = [90, 120, 150, 255];
-    let mut px = filled(gray, 16, 16);
-    let mut img = Image::new(&mut px, 16, 16, 16 * 4).unwrap();
-    let v = Values::from_json(
-        r##"{"size": 8, "angle": 0, "style": "ink", "ink": "#000000ff", "paper": "#ff000000"}"##,
-    )
+/// A light 32 x 16 image, two colors side by side, through a halftone with this paper
+/// and "Between the dots" choice.
+fn over_two_colors(paper: &str, between: &str) -> (Vec<u8>, [[u8; 4]; 2]) {
+    let colors = [[200, 180, 160, 255], [120, 220, 90, 255]];
+    let (w, h) = (32u32, 16u32);
+    let mut px: Vec<u8> = (0..w * h)
+        .flat_map(|i| colors[usize::from(i % w >= w / 2)])
+        .collect();
+    let mut img = Image::new(&mut px, w, h, w as usize * 4).unwrap();
+    let v = Values::from_json(&format!(
+        r##"{{"size": 8, "dot_size": 50, "angle": 0, "style": "ink", "ink": "#000000ff", "paper": "{paper}", "between": "{between}"}}"##
+    ))
     .unwrap();
     Halftone.apply(&mut img, &v, 1.0).unwrap();
-    let at = |x: usize, y: usize| &px[(y * 16 + x) * 4..][..4];
+    (px, colors)
+}
+
+#[test]
+fn the_image_shows_through_transparent_paper() {
+    let (px, colors) = over_two_colors("#ff000000", "paper");
+    let at = |x: usize, y: usize| &px[(y * 32 + x) * 4..][..4];
     // Between the dots: the image as it was, neither the paper's color nor nothing.
-    assert_eq!(at(0, 0), gray);
+    assert_eq!(at(0, 0), colors[0]);
+    assert_eq!(at(24, 8), colors[1]);
     // In a dot: the ink.
     assert_eq!(at(4, 4), [0, 0, 0, 255]);
+    assert_eq!(at(28, 12), [0, 0, 0, 255]);
+}
+
+#[test]
+fn nothing_between_the_dots_leaves_the_image() {
+    // Even with an opaque paper: it is not drawn.
+    let (px, colors) = over_two_colors("#ffffffff", "nothing");
+    let at = |x: usize, y: usize| &px[(y * 32 + x) * 4..][..4];
+    // Between the dots: the image as it came.
+    assert_eq!(at(0, 0), colors[0]);
+    assert_eq!(at(24, 8), colors[1]);
+    assert_eq!(at(4, 4), [0, 0, 0, 255]);
+    assert_eq!(at(28, 12), [0, 0, 0, 255]);
+}
+
+#[test]
+fn a_project_saved_before_the_choice_keeps_the_paper() {
+    assert_eq!(
+        over_two_colors("#ff000000", "").0,
+        over_two_colors("#ff000000", "paper").0
+    );
 }
 
 #[test]
