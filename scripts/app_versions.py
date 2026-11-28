@@ -24,9 +24,7 @@ TAG = re.compile(r"v(\d+)\.(\d+)\.(\d+)")
 
 def show(repo, tag, path):
     """The text of path at tag in the git repository repo."""
-    return subprocess.run(
-        ["git", "-C", str(repo), "show", f"{tag}:{path}"], check=True, capture_output=True, text=True
-    ).stdout
+    return subprocess.run(["git", "show", f"{tag}:{path}"], cwd=repo, check=True, capture_output=True, text=True).stdout
 
 
 def abi_constant(text, name):
@@ -50,8 +48,10 @@ def app_entry(version, read):
 
 def app_versions(repo):
     """The app releases in the clone repo, newest first."""
+    # The repository as the working directory rather than an argument (git -C): no path
+    # given on the command line can then be read by git as an option.
     tags = subprocess.run(
-        ["git", "-C", str(repo), "tag", "--list", "v*"], check=True, capture_output=True, text=True
+        ["git", "tag", "--list", "v*"], cwd=repo, check=True, capture_output=True, text=True
     ).stdout.split()
     releases = sorted((tuple(map(int, m.groups())), tag) for tag in tags if (m := TAG.fullmatch(tag)))
     return [

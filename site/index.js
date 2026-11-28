@@ -18,7 +18,7 @@ const DEFAULT_TITLE = document.title;
 // to this one), from the same place as the page, or the published one when the page is
 // opened from disk.
 const PUBLISHED_APPS = "https://bzhmaddog.github.io/artwork-creator-plugins/apps.json";
-const APPS = location.protocol === "file:" ? PUBLISHED_APPS : new URL("apps.json", location.href).href;
+const APPS = location.protocol === "file:" ? PUBLISHED_APPS : "apps.json";
 
 const KINDS = { python: "Python", library: "Native library" };
 const KIND_BADGES = { python: "text-bg-primary", library: "text-bg-warning" };
@@ -146,7 +146,8 @@ function compareVersions(a, b) {
 function meets(requirement, version) {
   if (!requirement) return true;
   return requirement.split(",").every((part) => {
-    const [, op, wanted] = part.trim().match(/^(>=|<=|>|<|=|\^|~)?\s*(.*)$/);
+    const [, op, rest] = part.trim().match(/^(>=|<=|>|<|=|\^|~)?(.*)$/);
+    const wanted = rest.trim();
     const d = compareVersionStrings(version, wanted);
     const [major, minor] = wanted.split(".").map(Number);
     const [vMajor, vMinor] = version.split(".").map(Number);
