@@ -14,6 +14,9 @@ class DeclaredTest(unittest.TestCase):
         self.assertEqual([e.name for e in posterize.plugin.effects], ["Posterize"])
         self.assertEqual(posterize.plugin.generators, [])
 
+    def test_leaves_strokes_out(self):
+        self.assertTrue(posterize.Posterize.fill_only)
+
 
 class PosterizeTest(unittest.TestCase):
     def apply(self, img, levels):
