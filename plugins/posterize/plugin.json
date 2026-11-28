@@ -6,12 +6,12 @@
   "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/posterize",
   "license": "MIT",
   "kind": "python",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "compatible_from": "2.0.0",
   "script": "posterize.py",
   "engines": {
-    "app": ">=0.21.0",
-    "sdk": ">=0.6.0"
+    "app": ">=0.22.0",
+    "sdk": ">=0.7.0"
   },
   "effects": [
     "Posterize"

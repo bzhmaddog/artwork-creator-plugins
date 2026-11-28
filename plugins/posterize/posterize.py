@@ -11,6 +11,8 @@ class Posterize(Effect):
     id = "pyexample.posterize"
     name = "Posterize"
     description = "Reduce each color channel to a few levels (Python example plugin)"
+    # It changes colors, not shapes: a shape's stroke and a text's outline stay out of it.
+    fill_only = True
     params = [int_param("levels", "Levels", 2, 32, 4)]
 
     def apply(self, image, values, scale):
@@ -50,4 +52,4 @@ TRANSLATIONS = {
     },
 }
 
-plugin = Plugin("Posterize", "2.0.0", effects=[Posterize()], translations=TRANSLATIONS)
+plugin = Plugin("Posterize", "2.1.0", effects=[Posterize()], translations=TRANSLATIONS)
