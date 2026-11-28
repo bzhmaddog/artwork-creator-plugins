@@ -56,3 +56,17 @@ fn same_picture_at_any_resolution() {
     }
     assert!(differ <= 1);
 }
+
+/// The red of the pixel at (`x`, `y`) of a `w` pixels wide picture.
+fn red(px: &[u8], w: usize, x: usize, y: usize) -> u8 {
+    px[(y * w + x) * 4]
+}
+
+#[test]
+fn a_full_offset_swaps_the_colors() {
+    // At 0°, bands 5 mm high; the middle of one band.
+    let base = r##"{"size": 5, "color1": "#000000ff", "color2": "#ffffffff", "angle": 0"##;
+    let plain = run(&format!("{base}}}"), 40, 40, 1.0);
+    let moved = run(&format!(r#"{base}, "offset": 100}}"#), 40, 40, 1.0);
+    assert_eq!(red(&plain, 40, 20, 7), 255 - red(&moved, 40, 20, 7));
+}
