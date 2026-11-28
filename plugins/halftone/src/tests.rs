@@ -24,6 +24,11 @@ fn every_text_is_in_both_englishes_and_french() {
     }
 }
 
+#[test]
+fn leaves_strokes_out() {
+    assert!(Halftone.fill_only());
+}
+
 /// How much of a 64 x 64 mid-gray square the dots cover, out of 1, with these
 /// values.
 fn ink(json: &str) -> f32 {
