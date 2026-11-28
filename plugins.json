@@ -3,6 +3,49 @@
   "name": "Artwork Creator official plugins",
   "plugins": [
     {
+      "id": "clouds",
+      "name": "Clouds",
+      "description": "Soft cloudy patches mixing two colors, as a shape fill",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/clouds",
+      "license": "MIT",
+      "kind": "library",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-28",
+          "abi": 3,
+          "generators": [
+            "Clouds"
+          ],
+          "changes": "First release: fills a shape with clouds of two colors",
+          "texts": {
+            "en-GB": {
+              "Soft cloudy patches mixing two colors, as a shape fill": "Soft cloudy patches mixing two colours, as a shape fill"
+            },
+            "fr-FR": {
+              "Clouds": "Nuages",
+              "Soft cloudy patches mixing two colors, as a shape fill": "Taches nuageuses douces mêlant deux couleurs, pour remplir une forme"
+            }
+          },
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/clouds-1.0.0/libclouds.so",
+              "sha256": "7896c4c256ed9aa3fd7c7adbcf4728cc091909e33c34ee19d4e2c3841ac1597e",
+              "size": 596704
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/clouds-1.0.0/clouds.dll",
+              "sha256": "d316f71d274c0bda18ee5fa594f4f6c77b861c31ed2d3e677af2c2b4a02a16cd",
+              "size": 354816
+            }
+          },
+          "compatible_from": "1.0.0"
+        }
+      ]
+    },
+    {
       "id": "film-grain",
       "name": "Film grain",
       "description": "Film grain effect: random noise, monochrome or color",
