@@ -400,8 +400,39 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/posterize",
       "license": "MIT",
       "kind": "python",
-      "latest": "1.1.0",
+      "latest": "1.2.0",
       "versions": [
+        {
+          "version": "1.2.0",
+          "released": "2026-11-28",
+          "min_app": "0.21.0",
+          "engines": {
+            "app": ">=0.21.0",
+            "sdk": ">=0.6.0"
+          },
+          "compatible_from": "1.0.0",
+          "effects": [
+            "Posterize"
+          ],
+          "generators": [
+            "Bands"
+          ],
+          "changes": "In English (US and UK) and French",
+          "texts": {
+            "fr-FR": {
+              "Posterize": "Postériser",
+              "Posterize effect and bands generator": "Effet de postérisation et générateur de bandes",
+              "Bands": "Bandes"
+            }
+          },
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/posterize-1.2.0/posterize.py",
+              "sha256": "482600f9d4c7d98823ccecee87bac3b79915d22552404970a6adb170c9276856",
+              "size": 4896
+            }
+          }
+        },
         {
           "version": "1.1.0",
           "released": "2026-11-26",
