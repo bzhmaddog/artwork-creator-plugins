@@ -62,11 +62,11 @@ impl Effect for Halftone {
 
     fn params(&self) -> Vec<Param> {
         let mut params = vec![
-            Param::float("size", "Dot spacing", 2.0, 100.0, 8.0)
+            Param::float("size", "Dot spacing", 2.0, 100.0, 16.0)
                 .unit(" px")
                 .role(Role::Size),
         ];
-        params.extend(screen(0.0, 100.0));
+        params.extend(screen(0.0, 85.0));
         params.push(Param::choice(
             "style",
             "Dots",

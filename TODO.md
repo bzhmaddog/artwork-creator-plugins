@@ -12,9 +12,6 @@
   **Paper** (the new default) or **Cut out**. Test a transparent paper over a non-uniform
   image, both choices. Minor version bump; `compatible_from` unchanged (saved settings
   load as before, only a paper or ink that isn't opaque looks different).
-- **Better default dot spacing and dot size.** The defaults (spacing 8 px, dot size
-  100 %) look ugly: pick ones that look good on a typical image and shape, in the same
-  release.
 
 ## Checkers - generator
 
