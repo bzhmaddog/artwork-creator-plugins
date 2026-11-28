@@ -458,13 +458,43 @@
     {
       "id": "posterize",
       "name": "Posterize",
-      "description": "Posterize effect and bands generator",
+      "description": "Reduce each color channel to a few levels",
       "author": "bzhmaddog",
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/posterize",
       "license": "MIT",
       "kind": "python",
-      "latest": "1.2.0",
+      "latest": "2.0.0",
       "versions": [
+        {
+          "version": "2.0.0",
+          "released": "2026-11-28",
+          "min_app": "0.21.0",
+          "engines": {
+            "app": ">=0.21.0",
+            "sdk": ">=0.6.0"
+          },
+          "compatible_from": "2.0.0",
+          "effects": [
+            "Posterize"
+          ],
+          "changes": "Bands generator removed: use Stripes",
+          "texts": {
+            "en-GB": {
+              "Reduce each color channel to a few levels": "Reduce each colour channel to a few levels"
+            },
+            "fr-FR": {
+              "Posterize": "Postériser",
+              "Reduce each color channel to a few levels": "Réduit chaque canal de couleur à quelques niveaux"
+            }
+          },
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/posterize-2.0.0/posterize.py",
+              "sha256": "0257033ce266b084da6e80f494c4c6b2b362a772d74ac4c416eb1f8f6ade253f",
+              "size": 2116
+            }
+          }
+        },
         {
           "version": "1.2.0",
           "released": "2026-11-28",
