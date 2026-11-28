@@ -1,0 +1,12 @@
+{
+  "id": "stripes",
+  "name": "Stripes",
+  "description": "Parallel bands of two colors in turn, as a shape fill",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/stripes",
+  "license": "MIT",
+  "kind": "library",
+  "generators": [
+    "Stripes"
+  ]
+}

@@ -2,7 +2,8 @@
 #   make hooks                         # once per clone (or after moving it): installs the hook
 #   make pre-commit                    # every hook on every file
 # On commit: file hygiene, ruff (lint, with fixes, and format), mypy, cargo fmt, the
-# manifest/index validation, a Cargo.lock with the SDK from GitHub, and the Python and Rust tests under coverage (make coverage):
+# manifest/index validation, a Cargo.lock with the SDK from GitHub, no copied code within a
+# plugin (make duplication), and the Python and Rust tests under coverage (make coverage):
 # fails under fail_under in .coveragerc, or when less than 80% of the code changed since
 # main is covered, SonarQube Cloud's gate (scripts/new_code_coverage.py). Keep the ruff
 # and mypy revs in step with requirements-dev.in.
@@ -52,13 +53,20 @@ repos:
         language: system
         files: ^(plugins/|plugins\.json$|Cargo\.toml$|scripts/plugin_index\.py$)
         pass_filenames: false
-      # The staged Cargo.lock, not the working tree's: after make sdk-local, the latter
-      # names the local SDK, which CI can't build.
+      # The staged Cargo.lock, not the working tree's: it must take the SDK from GitHub,
+      # as CI builds it (make sdk-local's paths override leaves it so; a [patch] doesn't).
       - id: cargo-lock-sdk
         name: Cargo.lock takes the plugin SDK from GitHub
         entry: sh -c 'git show :Cargo.lock | python3 scripts/plugin_index.py check-lock -'
         language: system
         files: ^Cargo\.lock$
+        pass_filenames: false
+      # Every plugin, whatever is staged: it takes a few seconds (jscpd, through npx).
+      - id: duplication
+        name: no copied code within a plugin (jscpd)
+        entry: make duplication
+        language: system
+        files: ^plugins/.*\.(rs|py)$
         pass_filenames: false
       # The tests, Python and Rust together: the gate on new code needs both reports up to
       # date. A plugin's tests also run when its manifest changes (tests/test_plugins.py

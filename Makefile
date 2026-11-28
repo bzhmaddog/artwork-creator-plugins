@@ -2,14 +2,15 @@
 # like the app's Makefile. The Release workflow (.github/workflows/release.yml) builds a plugin's
 # Linux file with make install-zig install-zigbuild and make linux-portable PACKAGE=<package>.
 #
-# Needs rustup (https://rustup.rs) and python3 (3.11+); make install adds the rest, except
-# MinGW for the Windows build, a system package (sudo apt install gcc-mingw-w64-x86-64).
+# Needs rustup (https://rustup.rs), python3 (3.11+) and Node.js 18+ (https://nodejs.org: npx,
+# for jscpd in make duplication); make install adds the rest, except MinGW for the Windows build, a system
+# package (sudo apt install gcc-mingw-w64-x86-64).
 #
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
 #                     components, cargo-zigbuild and cargo-llvm-cov, zig in .tools/, a .venv
-#                     with requirements-dev.txt and the Python plugins' dependencies, the
-#                     git hooks, and the local app's SDK when there is one (sdk-local)
+#                     with requirements-dev.txt and the Python plugins' dependencies, jscpd
+#                     (in npx's cache), the git hooks, and the local app's SDK when there is one (sdk-local)
 #   make              build every Rust plugin for Linux and Windows (all)
 #   make linux        build for Linux, against this machine's glibc
 #   make linux-portable  build for Linux against glibc GLIBC, like the released files (one
@@ -29,6 +30,8 @@
 #                     SonarQube Cloud's gate (make coverage-new, on the reports alone)
 #   make lint         lint and type-check the Python code (ruff, ruff format --check, mypy;
 #                     requirements-dev.txt)
+#   make duplication  fail when more than 3 % of a plugin's code is copied within that
+#                     plugin (jscpd, one plugin at a time: plugins share code on purpose)
 #   make fmt          format the Rust and the Python code
 #   make lock         regenerate requirements-dev.txt (hash-locked) from requirements-dev.in
 #   make hooks        install the git hook of .pre-commit-config.yaml (pre-commit; again
@@ -74,12 +77,12 @@ PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
 .PHONY: sdk-local sdk-github
-.PHONY: all install install-rust install-zig install-zigbuild install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint hooks pre-commit fmt clippy tag clean
+.PHONY: all install install-rust install-zig install-zigbuild install-python install-jscpd lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint duplication hooks pre-commit fmt clippy tag clean
 
 all: linux windows
 
 # Safe to run again: each step skips or updates what's already there.
-install: install-rust install-zig install-python
+install: install-rust install-zig install-python install-jscpd
 	@if [ -d .git ]; then .venv/bin/python -m pre_commit install; fi
 	@# The local app's SDK when there is one (and none was chosen yet): see sdk-local.
 	@if [ -f $(SDK_PATH)/Cargo.toml ] && [ ! -f .cargo/config.toml ]; then $(MAKE) --no-print-directory sdk-local; \
@@ -104,6 +107,12 @@ install-zig:
 	    https://ziglang.org/download/$(ZIG_VERSION)/zig-x86_64-linux-$(ZIG_VERSION).tar.xz && \
 	  echo "$(ZIG_SHA256)  .tools/zig.tar.xz" | sha256sum -c - && \
 	  tar -xJf .tools/zig.tar.xz -C .tools && rm .tools/zig.tar.xz; fi
+
+# jscpd for make duplication, fetched once into npx's cache (Node.js 18+ is needed first).
+install-jscpd:
+	@node -e 'process.exit(parseInt(process.versions.node) < 18 ? 1 : 0)' 2>/dev/null || \
+	  { echo "Node.js 18+ is needed first (for make duplication): https://nodejs.org"; exit 1; }
+	$(JSCPD) --version
 
 install-python:
 	@$(BOOTSTRAP_PYTHON) -c 'import sys; sys.exit(sys.version_info < (3, 11))' || \
@@ -146,7 +155,7 @@ SERVE_PORT    ?= 8765
 serve:
 	$(PYTHON) scripts/serve.py --port $(SERVE_PORT) $(foreach t,$(SERVE_TARGETS),--build $(t))
 
-check: validate lint test clippy
+check: validate lint duplication test clippy
 	$(CARGO) fmt --all --check
 
 # What CI checks besides the builds: the manifests, plugins.json and the Python scripts.
@@ -193,24 +202,40 @@ MIN ?= 80
 coverage-new:
 	$(PYTHON) scripts/new_code_coverage.py --min $(MIN)
 
+# Copy-paste in a plugin's own code (not its tests), each plugin on its own: they stand
+# alone, so what they have in common is copied on purpose, and SonarQube Cloud leaves
+# plugins/ out of its duplication check (sonar.cpd.exclusions), which spans the whole
+# repository. The 3 % is SonarQube Cloud's gate on new code.
+JSCPD_VERSION := 5.4.3
+JSCPD ?= npx --yes jscpd@$(JSCPD_VERSION)
+
+duplication:
+	@for d in plugins/*/; do \
+	  out="$$($(JSCPD) --format rust,python --min-tokens 50 --threshold 3 \
+	    --ignore '**/tests.rs,**/test_*.py' --reporters console "$$d" 2>&1)" \
+	    || { printf '%s\n' "$$out"; echo "duplication in $$d"; exit 1; }; \
+	done; echo "no duplication within a plugin"
+
 # Settings in ruff.toml and mypy.ini.
 lint:
 	$(RUFF) check .
 	$(RUFF) format --check .
 	$(MYPY)
 
-# The plugin SDK of a local app checkout in place of the one from GitHub, through a [patch]
-# in .cargo/config.toml, which git ignores: the Cargo.toml files keep their git dependency
-# for CI. Cargo.lock then names the local SDK; the commit hook refuses it (check-lock).
+# The plugin SDK of a local app checkout in place of the one from GitHub, through a paths
+# override in .cargo/config.toml, which git ignores: the Cargo.toml files keep their git
+# dependency for CI, and unlike a [patch], it leaves Cargo.lock alone, so the lock keeps the
+# SDK from GitHub and can be committed. The local SDK may have another version than the
+# tag's, but not dependencies the tag's hasn't (Cargo then refuses the override).
+# Running cargo metadata also repairs a lock that an older make sdk-local (a [patch]) wrote.
 SDK_PATH ?= ../artwork-creator-app/plugin-sdk
-SDK_REPO := https://github.com/bzhmaddog/artwork-creator-app
 
 sdk-local:
 	@test -f $(SDK_PATH)/Cargo.toml || { echo "no plugin SDK in $(SDK_PATH): set SDK_PATH"; exit 1; }
 	@mkdir -p .cargo
-	@printf '# Written by make sdk-local, removed by make sdk-github.\n[patch."%s"]\n%s = { path = "%s" }\n' \
-	  '$(SDK_REPO)' artwork-plugin-sdk "$$(cd $(SDK_PATH) && pwd)" > .cargo/config.toml
-	$(CARGO) metadata --offline --format-version 1 > /dev/null
+	@printf '# Written by make sdk-local, removed by make sdk-github.\npaths = ["%s"]\n' \
+	  "$$(cd $(SDK_PATH) && pwd)" > .cargo/config.toml
+	$(CARGO) metadata --format-version 1 > /dev/null
 	@echo "Building against $$(cd $(SDK_PATH) && pwd); make sdk-github to go back."
 
 sdk-github:

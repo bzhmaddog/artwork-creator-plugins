@@ -263,6 +263,11 @@ export_plugin!(
     version: env!("CARGO_PKG_VERSION"),
     effects: [Halftone],
     generators: [DotGrid],
+    translations: [
+        ("en-US", include_str!("../locales/en-US.json")),
+        ("en-GB", include_str!("../locales/en-GB.json")),
+        ("fr-FR", include_str!("../locales/fr-FR.json")),
+    ],
 );
 
 #[cfg(test)]

@@ -1,0 +1,12 @@
+{
+  "id": "noise",
+  "name": "Noise",
+  "description": "Random grains of two colors, as a shape fill",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/noise",
+  "license": "MIT",
+  "kind": "library",
+  "generators": [
+    "Noise"
+  ]
+}

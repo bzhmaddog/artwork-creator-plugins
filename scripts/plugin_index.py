@@ -4,6 +4,10 @@
 Each plugin is a folder of plugins/ with a plugin.json manifest (id, name, description, author,
 homepage, license, kind, optionally engines and compatible_from, and effects and/or generators:
 the display names of what it provides; for a Python plugin also version and script).
+Its code's catalogs (a Rust plugin's locales/<code>.json, a Python plugin's translations=...)
+translate those names, its name and its description too: each version of the index gives
+them in its texts, {"fr-FR": {"Halftone": "Demi-teintes", ...}}, for the app to show them in
+its language before the plugin is installed. Translations are optional: English is the code's.
 engines says what the plugin needs of the app, as version requirements: {"app": ">=0.17.0",
 "sdk": ">=0.4.0"}; a Python plugin gives "sdk", a library none (its ABI version says it).
 A release is a tag <folder>-<version>; the Release workflow uses these commands:
@@ -19,7 +23,7 @@ A release is a tag <folder>-<version>; the Release workflow uses these commands:
                        it and open a pull request for it (git, gh)
   validate             check plugins.json and every manifest (CI)
   check-lock [FILE]    fail if Cargo.lock (FILE, - for stdin) takes the plugin SDK from
-                       anywhere but GitHub, as after make sdk-local (the commit hook)
+                       anywhere but GitHub, as a [patch] of it writes (the commit hook)
   version PLUGIN       print a plugin's version (make tag)
   dependencies         print the Python plugins' dependencies, one per line (pip install)
 
@@ -29,6 +33,7 @@ Standard library only (Python 3.11+).
 """
 
 import argparse
+import ast
 import datetime
 import hashlib
 import json
@@ -205,6 +210,85 @@ def code_provides(folder, m):
                 raise Error(f"{folder.name}: no literal fn name in impl {trait} for {t}")
             found[k].append(name[1])
     return found
+
+
+def code_translations(folder, m):
+    """The catalogs a plugin's code gives, {language code: {English text: translated}}, read
+    without running it: a Rust plugin's locales/<code>.json, a Python plugin's translations=...
+    argument of Plugin(...), a literal dict or the name of one assigned at the top of its script.
+    {} for a plugin without any."""
+    if m["kind"] == "library":
+        return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted((folder / "locales").glob("*.json"))}
+    script = m["script"]
+    try:
+        tree = ast.parse(script_path(folder, m).read_text(encoding="utf-8"))
+    except SyntaxError as e:
+        raise Error(f"{folder.name}: can't parse {script}: {e}") from e
+    calls = [
+        n
+        for n in ast.walk(tree)
+        if isinstance(n, ast.Call) and (getattr(n.func, "id", None) or getattr(n.func, "attr", None)) == "Plugin"
+    ]
+    value = next((k.value for c in calls for k in c.keywords if k.arg == "translations"), None)
+    if isinstance(value, ast.Name):
+        name = value.id
+        assigned = [
+            n.value
+            for n in tree.body
+            if (isinstance(n, ast.Assign) and any(isinstance(t, ast.Name) and t.id == name for t in n.targets))
+            or (isinstance(n, ast.AnnAssign) and isinstance(n.target, ast.Name) and n.target.id == name)
+        ]
+        if not assigned or assigned[-1] is None:
+            raise Error(f"{folder.name}: translations={name} in {script}, but no {name} = {{...}} at its top level")
+        value = assigned[-1]
+    if value is None:
+        return {}
+    try:
+        # A dict, or what dict() takes, as the SDK does (dict(translations or {})).
+        return dict(ast.literal_eval(value) or {})
+    except (ValueError, TypeError) as e:
+        raise Error(f"{folder.name}: translations in {script} must be a literal dict, or the name of one") from e
+
+
+def index_english(m):
+    """The texts of a manifest a version of the index translates: its name and description, and
+    the names of its effects and generators."""
+    return [m["name"], m["description"], *m.get("effects", []), *m.get("generators", [])]
+
+
+def index_texts(m, catalogs):
+    """A version's texts in the index: for each language, the translations of the manifest's
+    texts (index_english) that its catalog gives and that differ from the English ones; a
+    language with none is left out (the U.S. English one)."""
+    texts = {}
+    for language, catalog in sorted(catalogs.items()):
+        t = {e: catalog[e] for e in index_english(m) if isinstance(catalog.get(e), str) and catalog[e] not in ("", e)}
+        if t:
+            texts[language] = t
+    return texts
+
+
+def catalog_errors(folder, catalogs):
+    """Where a plugin's catalogs are not dicts of strings. Translations are optional: a text a
+    catalog leaves out shows in English."""
+    return [
+        f"{folder.name}: the {language} catalog must map strings to strings"
+        for language, catalog in sorted(catalogs.items())
+        if not isinstance(catalog, dict)
+        or not all(isinstance(k, str) and isinstance(v, str) for k, v in catalog.items())
+    ]
+
+
+def texts_errors(texts):
+    """Problems with a version's texts in the index."""
+    if not isinstance(texts, dict) or not all(
+        isinstance(language, str)
+        and isinstance(t, dict)
+        and all(isinstance(k, str) and isinstance(v, str) for k, v in t.items())
+        for language, t in texts.items()
+    ):
+        return ["texts must map language codes to dicts of strings"]
+    return []
 
 
 def code_identity(folder, m):
@@ -414,12 +498,12 @@ def sdk_dependency_errors(cargo_toml, where):
 
 
 def lock_errors(lock):
-    """Problems with Cargo.lock (its text): an SDK not from GitHub, as make sdk-local writes
-    it, which CI's --locked builds refuse."""
+    """Problems with Cargo.lock (its text): an SDK not from GitHub, as a [patch] of it (an
+    older make sdk-local) writes it, which CI's --locked builds refuse."""
     packages = tomllib.loads(lock).get("package", [])
     return [
-        f"Cargo.lock: {SDK_PACKAGE} {p.get('version')} is not from GitHub (make sdk-local?): "
-        "run make sdk-github, or leave Cargo.lock out of the commit"
+        f"Cargo.lock: {SDK_PACKAGE} {p.get('version')} is not from GitHub (a [patch] in "
+        ".cargo/config.toml?): run make sdk-local or make sdk-github again, or leave Cargo.lock out of the commit"
         for p in packages
         if p.get("name") == SDK_PACKAGE and not str(p.get("source", "")).startswith("git+https://github.com/")
     ]
@@ -486,6 +570,9 @@ def plugin_entry(folder, m, files, changes=None, abi=None, index=None):
         deps = pep723_dependencies(script_path(folder, m))
         if deps:
             version["dependencies"] = deps
+    texts = index_texts(m, code_translations(folder, m))
+    if texts:
+        version["texts"] = texts
     version["files"] = files
     entry = {k: m[k] for k in PLUGIN_FIELDS if m.get(k)}
     entry["latest"] = m["version"]
@@ -646,6 +733,7 @@ def cmd_validate(args):
                         f"{folder.name}: plugin.json {k} {sorted(declared)} don't match the code's {sorted(actual)}"
                     )
             errors += identity_errors(folder, m, code_identity(folder, m))
+            errors += catalog_errors(folder, code_translations(folder, m))
         except (Error, OSError, ValueError, KeyError) as e:
             errors.append(str(e))
     for folder in PLUGINS.iterdir():
@@ -683,6 +771,8 @@ def cmd_validate(args):
             deps = v.get("dependencies", [])
             if not isinstance(deps, list) or not all(isinstance(d, str) and d.strip() for d in deps):
                 errors.append(f"{where}: dependencies must be a list of requirement strings")
+            if "texts" in v:
+                errors += [f"{where}: {e}" for e in texts_errors(v["texts"])]
             if v.get("abi") == 1 and "generators" in v:
                 errors.append(f"{where}: ABI 1 has no generators")
             for platform, f in v.get("files", {}).items():

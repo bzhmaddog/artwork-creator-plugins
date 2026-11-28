@@ -13,8 +13,8 @@ docs/publishing.md describe everything in detail; the rules that matter most:
   none is missing) and takes the SDK from the app's repository at a release tag. Moving to
   a newer tag: change it, `cargo update -p artwork-plugin-sdk@<old version>`, `make check`.
   Never a `path` dependency (CI has only this repository): `make sdk-local` builds against
-  the local app's SDK for this clone only, `make sdk-github` goes back; don't commit
-  `Cargo.lock` meanwhile.
+  the local app's SDK for this clone only (a `paths` override: `Cargo.lock` keeps the SDK
+  from GitHub), `make sdk-github` goes back.
 - **`engines`**: Cargo-style requirements, prefer `>=` alone (no upper bound). `sdk` is
   required for Python plugins (the SDK that added the newest thing used); a Python plugin
   for an SDK newer than 0.3.0 also needs `app`. `make validate` checks this.
@@ -32,7 +32,12 @@ docs/publishing.md describe everything in detail; the rules that matter most:
   push the tag (ask before pushing). The workflow opens an "Index <id>-<version>" PR.
 - **Trying before a release**: `make serve`, then add
   `http://127.0.0.1:8765/plugins.json` in the app's plugin manager.
+- **Translations**: every official plugin gives all its texts in `en-US`, `en-GB` and
+  `fr-FR`, each a complete catalog of the code's texts (Rust: `plugins/<id>/locales/<code>.json`
+  in `export_plugin!`'s `translations`; Python: a `TRANSLATIONS` dict passed to
+  `Plugin(..., translations=...)`). Tests check that none is missing (a Rust plugin's own
+  `untranslated` test, `tests/test_plugins.py` for Python). Needs plugin SDK 0.6.0.
 - **U.S. English** in code, comments and docs, as in the app.
 
-Before finishing, run `make check` (validate, lint with ruff and mypy, tests, clippy,
-`cargo fmt --check`); `make fmt` formats Python and Rust.
+Before finishing, run `make check` (validate, lint with ruff and mypy, duplication within
+each plugin with jscpd, tests, clippy, `cargo fmt --check`); `make fmt` formats Python and Rust.

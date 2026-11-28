@@ -50,4 +50,49 @@ class FilmGrain(Effect):
         image.pixels[:] = out.tobytes()
 
 
-plugin = Plugin("Film grain", "1.0.1", effects=[FilmGrain()])
+# The texts of the code in each language of the app.
+TRANSLATIONS = {
+    "en-US": {
+        "Film grain effect: random noise, monochrome or color": "Film grain effect: random noise, monochrome or color",
+        "Film grain": "Film grain",
+        "Random noise, like the grain of film (Python plugin using numpy)": (
+            "Random noise, like the grain of film (Python plugin using numpy)"
+        ),
+        "Amount": "Amount",
+        "Grain size": "Grain size",
+        "Grain": "Grain",
+        "Monochrome": "Monochrome",
+        "Color": "Color",
+        "Seed": "Seed",
+    },
+    "en-GB": {
+        "Film grain effect: random noise, monochrome or color": "Film grain effect: random noise, monochrome or colour",
+        "Film grain": "Film grain",
+        "Random noise, like the grain of film (Python plugin using numpy)": (
+            "Random noise, like the grain of film (Python plugin using numpy)"
+        ),
+        "Amount": "Amount",
+        "Grain size": "Grain size",
+        "Grain": "Grain",
+        "Monochrome": "Monochrome",
+        "Color": "Colour",
+        "Seed": "Seed",
+    },
+    "fr-FR": {
+        "Film grain effect: random noise, monochrome or color": (
+            "Effet de grain argentique : bruit aléatoire, monochrome ou en couleur"
+        ),
+        "Film grain": "Grain argentique",
+        "Random noise, like the grain of film (Python plugin using numpy)": (
+            "Bruit aléatoire, comme le grain d'une pellicule (extension Python utilisant numpy)"
+        ),
+        "Amount": "Intensité",
+        "Grain size": "Taille du grain",
+        "Grain": "Grain",
+        "Monochrome": "Monochrome",
+        "Color": "Couleur",
+        "Seed": "Variante",
+    },
+}
+
+plugin = Plugin("Film grain", "1.1.0", effects=[FilmGrain()], translations=TRANSLATIONS)

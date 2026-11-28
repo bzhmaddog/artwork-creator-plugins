@@ -1,6 +1,6 @@
 # TODO
 
-## Halftone
+## Halftone - effect
 
 - **Paper and ink over the image, or cut out.** Today the effect repaints every pixel
   of the image it is given: between the dots, the paper color replaces the image. A
@@ -15,3 +15,25 @@
 - **Better default dot spacing and dot size.** The defaults (spacing 8 px, dot size
   100 %) look ugly: pick ones that look good on a typical image and shape, in the same
   release.
+
+## Checkers - generator
+
+- **Number of dots instead of squar size** or add x,y offsets to control pattern position
+
+## Cloud - generator
+
+- Add a refresh/seed button to force regeneration
+
+## Dot grid - generator
+
+- Why does adjusting the spacing changes the size of the dots !!! dot size is supposed to be a % of the surface
+  maybe it make sense but then an explanation is needed
+
+## Noise - generator
+
+- Add refresh/seed button
+
+## Bands - generator
+
+- Add an offset (that depends on the orientation)
+- Add a rotation point (currently center of the surface)

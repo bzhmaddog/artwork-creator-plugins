@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """Serve the working tree's plugins as a plugin repository on this machine, to try them in
 the app before a release (make serve). The list is the one the Release workflow would
-write (plugin_index.plugin_entry), made from the manifests and builds only (the
-repository's plugins.json isn't read for it), with every file served from here instead of a GitHub Release,
-and it's made again on every fetch: the Rust plugins are rebuilt and every file is
-hashed again. The page of site/ is served at /, to preview it with that list, and the
-repository's plugins.json file, as it is on disk, at /repository/plugins.json.
+write (plugin_index.plugin_entry), made from the manifests and builds, with every file
+served from here instead of a GitHub Release, followed by the versions already released
+(those of the repository's plugins.json, downloaded from their GitHub Release as from the
+published list), so an app the working tree's version doesn't work with is offered the
+latest released one that does, as it would be. It's made again on every fetch: the Rust
+plugins are rebuilt and every file is hashed again. The page of site/ is served at /, to
+preview it with that list, and the repository's plugins.json file, as it is on disk, at
+/repository/plugins.json.
 
 Standard library only (Python 3.11+).
 """
@@ -77,10 +80,21 @@ class LocalRepository:
         target = PLATFORM_TARGETS.get(platform)
         return ROOT / "target" / target / "release" / name if target else None
 
+    @staticmethod
+    def released():
+        """The versions of each plugin in the repository's plugins.json, by id; none if it
+        can't be read."""
+        try:
+            index = json.loads((ROOT / "plugins.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            return {}
+        return {p["id"]: p.get("versions", []) for p in index.get("plugins", [])}
+
     def index(self):
         with self.lock:
             self.cargo_build()
             plugins = []
+            released = self.released()
             for folder in plugin_dirs():
                 m = load_plugin(folder)
                 files = {}
@@ -104,7 +118,10 @@ class LocalRepository:
                 changes = f"Local build of {m['id']} {m['version']} (working tree)"
                 # Made from the working tree alone, not from the committed plugins.json: a
                 # version has a compatible_from only when its manifest gives one.
-                plugins.append(plugin_entry(folder, m, files, changes, abi))
+                entry = plugin_entry(folder, m, files, changes, abi)
+                # Then the released versions, but the one the working tree replaces.
+                entry["versions"] += [v for v in released.get(m["id"], []) if v["version"] != m["version"]]
+                plugins.append(entry)
             return {"format": 1, "name": "Local plugins (working tree)", "plugins": plugins}
 
 

@@ -62,3 +62,14 @@ class PluginsTest(unittest.TestCase):
                 continue
             ids += [x.id for x in plugin.effects + plugin.generators]
         self.assertEqual(len(ids), len(set(ids)), ids)
+
+    def test_every_text_is_translated(self):
+        # Every official plugin gives a complete catalog in each of these (CLAUDE.md).
+        for folder, m in python_plugins():
+            try:
+                plugin = load_plugin(folder / m["script"]).plugin
+            except unittest.SkipTest:
+                continue
+            for language in ("en-US", "en-GB", "fr-FR"):
+                with self.subTest(plugin=folder.name, language=language):
+                    self.assertEqual(plugin.untranslated(language), [])

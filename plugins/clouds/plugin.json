@@ -1,0 +1,12 @@
+{
+  "id": "clouds",
+  "name": "Clouds",
+  "description": "Soft cloudy patches mixing two colors, as a shape fill",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/clouds",
+  "license": "MIT",
+  "kind": "library",
+  "generators": [
+    "Clouds"
+  ]
+}

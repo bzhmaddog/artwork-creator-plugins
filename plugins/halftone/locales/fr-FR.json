@@ -1,0 +1,19 @@
+{
+  "Halftone": "Demi-teintes",
+  "Redraw the image as a screen of dots sized by its darkness (example plugin)": "Redessine l'image en une trame de points dont la taille suit sa noirceur (extension d'exemple)",
+  "Dot spacing": "Espacement des points",
+  "Dot size": "Taille des points",
+  "Angle": "Angle",
+  "X offset": "Décalage X",
+  "Y offset": "Décalage Y",
+  "Dots": "Points",
+  "One ink": "Une encre",
+  "Image colors": "Couleurs de l'image",
+  "Colors": "Couleurs",
+  "Ink": "Encre",
+  "Paper": "Papier",
+  "Dot grid": "Grille de points",
+  "Even dots on a square grid (example plugin)": "Points réguliers sur une grille carrée (extension d'exemple)",
+  "Spacing": "Espacement",
+  "Halftone dots effect and dot grid generator": "Effet de demi-teintes et générateur de grille de points"
+}

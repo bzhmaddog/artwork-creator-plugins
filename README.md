@@ -49,8 +49,15 @@ The whole process, adding a new plugin, and what to do when a release fails:
 To try plugins in the app before releasing them, `make serve` serves the working tree
 as a local repository: see [Trying plugins before a release](docs/publishing.md#trying-plugins-before-a-release).
 
-**CI** checks every push and pull request: the manifests and `plugins.json`, the tests,
-and that everything builds (`make check` runs the same checks locally).
+**CI** checks every push and pull request: the manifests and `plugins.json`, the tests, the
+lint, copied code within each plugin, and that everything builds (`make check` runs the same
+checks locally).
+
+**Duplication**: `make duplication` (the Duplication job in CI, and a commit hook) runs
+[jscpd](https://github.com/kucherenko/jscpd) on each plugin's own code, tests left out, one
+plugin at a time, and fails above 3 % of copied code. Plugins stand alone, so the helpers they
+have in common are copied on purpose: SonarQube Cloud, whose duplication check spans the whole
+repository, leaves `plugins/` out of it (`sonar.cpd.exclusions` in `sonar-project.properties`).
 
 **Tests**: `make test` runs them all. The Rust plugins' tests are in their crates
 (`make test-rust`, i.e. `cargo test`). A Python plugin's are next to its script
@@ -85,11 +92,12 @@ commit: look at the changes, `git add` them and commit again. `make pre-commit` 
 hooks on every file; `git commit --no-verify` skips them. Run `make hooks` again after
 moving the clone: the hook names the `.venv`'s Python by its path.
 
-**Setup**: with [rustup](https://rustup.rs) and Python 3.11+ installed, `make install` adds
+**Setup**: with [rustup](https://rustup.rs), Python 3.11+ and Node.js 18+ (for `npx jscpd` in
+`make duplication`) installed, `make install` adds
 everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
 components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
 a `.venv` with `requirements-dev.txt` and the Python plugins' dependencies (which make then
-uses), and the git hooks. With the app checked out next to this repository
+uses), jscpd (fetched into npx's cache), and the git hooks. With the app checked out next to this repository
 (`../artwork-creator-app`), it also makes the Rust plugins build against that app's plugin SDK
 instead of the one from GitHub, for this clone only (`make sdk-local`, see
 [Working with an SDK that isn't released yet](docs/publishing.md#working-with-an-sdk-that-isnt-released-yet)).

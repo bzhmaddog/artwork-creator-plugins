@@ -38,6 +38,21 @@ class LocalRepositoryTest(ServeTestCase):
         self.assertIn("working tree", v["changes"])
         self.assertEqual(repo.files[digest], ("demo.py", data))
 
+    def test_released_versions_follow_the_working_tree_s(self):
+        self.add_python()
+        old = {"version": "0.9.0", "files": {"any": {"url": "https://github.com/x/demo.py"}}}
+        replaced = {"version": "1.0.0", "files": {}}
+        index = {"format": 1, "plugins": [{"id": "demo", "versions": [replaced, old]}]}
+        (self.root / "plugins.json").write_text(json.dumps(index))
+        [p] = serve.LocalRepository("u", []).index()["plugins"]
+        self.assertEqual([v["version"] for v in p["versions"]], [p["latest"], "0.9.0"])
+        self.assertIn("working tree", p["versions"][0]["changes"])
+        self.assertEqual(p["versions"][1], old)
+        # No plugins.json: the working tree's alone.
+        (self.root / "plugins.json").write_text("not json")
+        [p] = serve.LocalRepository("u", []).index()["plugins"]
+        self.assertEqual(len(p["versions"]), 1)
+
     def test_an_old_file_stays_downloadable_after_an_edit(self):
         folder = self.add_python()
         repo = serve.LocalRepository("u", [])
