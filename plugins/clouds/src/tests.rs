@@ -30,7 +30,7 @@ fn run(json: &str, w: u32, h: u32, px_per_mm: f32) -> Vec<u8> {
     px
 }
 
-/// The default values, as the app gives them.
+/// The default values, but black and white for the two colors.
 const DEFAULTS: &str =
     r##"{"size": 40, "detail": 5, "color1": "#000000ff", "color2": "#ffffffff", "seed": 1}"##;
 

@@ -479,6 +479,23 @@ class TextsTest(RepoTestCase):
         problems = pi.catalog_errors(folder, {"fr": {"Demo": 3}})
         self.assertEqual(problems, ["demo: the fr catalog must map strings to strings"])
 
+    def test_what_the_sdk_takes_or_refuses(self):
+        folder = self.add_python()
+        m = pi.load_plugin(folder)
+        # As the SDK's dict(translations or {}): None, and pairs.
+        self.write("plugins/demo/demo.py", with_translations("None"))
+        self.assertEqual(pi.code_translations(folder, m), {})
+        self.write("plugins/demo/demo.py", with_translations('[("fr", {"Noise": "Bruit"})]'))
+        self.assertEqual(pi.code_translations(folder, m), {"fr": {"Noise": "Bruit"}})
+        # Not a mapping, or a key that can't be one: a problem, not a traceback.
+        for bad in ("3", '"fr"', "{[1]: {}}"):
+            self.write("plugins/demo/demo.py", with_translations(bad))
+            with self.assertRaisesRegex(pi.Error, "must be a literal dict"):
+                pi.code_translations(folder, m)
+        self.write("plugins/demo/demo.py", "plugin = Plugin(\n")
+        with self.assertRaisesRegex(pi.Error, "can't parse demo.py"):
+            pi.code_translations(folder, m)
+
     def test_index_texts_are_checked(self):
         self.assertEqual(pi.texts_errors({"fr-FR": {"A": "B"}}), [])
         bad = ["texts must map language codes to dicts of strings"]

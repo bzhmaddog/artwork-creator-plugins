@@ -220,7 +220,10 @@ def code_translations(folder, m):
     if m["kind"] == "library":
         return {p.stem: json.loads(p.read_text(encoding="utf-8")) for p in sorted((folder / "locales").glob("*.json"))}
     script = m["script"]
-    tree = ast.parse(script_path(folder, m).read_text(encoding="utf-8"))
+    try:
+        tree = ast.parse(script_path(folder, m).read_text(encoding="utf-8"))
+    except SyntaxError as e:
+        raise Error(f"{folder.name}: can't parse {script}: {e}") from e
     calls = [
         n
         for n in ast.walk(tree)
@@ -241,8 +244,9 @@ def code_translations(folder, m):
     if value is None:
         return {}
     try:
-        return ast.literal_eval(value)
-    except ValueError as e:
+        # A dict, or what dict() takes, as the SDK does (dict(translations or {})).
+        return dict(ast.literal_eval(value) or {})
+    except (ValueError, TypeError) as e:
         raise Error(f"{folder.name}: translations in {script} must be a literal dict, or the name of one") from e
 
 
