@@ -10,8 +10,39 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/checkerboard",
       "license": "MIT",
       "kind": "library",
-      "latest": "1.0.0",
+      "latest": "1.1.0",
       "versions": [
+        {
+          "version": "1.1.0",
+          "released": "2026-11-28",
+          "abi": 3,
+          "generators": [
+            "Checkerboard"
+          ],
+          "changes": "Squares by size or by count: a number of squares that fills the width exactly. X and Y offsets to move the pattern.",
+          "texts": {
+            "en-GB": {
+              "Squares of two colors in turn, as a shape fill": "Squares of two colours in turn, as a shape fill"
+            },
+            "fr-FR": {
+              "Checkerboard": "Damier",
+              "Squares of two colors in turn, as a shape fill": "Carrés de deux couleurs en alternance, pour remplir une forme"
+            }
+          },
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/checkerboard-1.1.0/libcheckerboard.so",
+              "sha256": "57fe05b13441781675720420e09f45e1339b7af3d3e65ba93673a4f238831e08",
+              "size": 607152
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/checkerboard-1.1.0/checkerboard.dll",
+              "sha256": "0dbb81da4abcad3007fb709c1f4ede9758980893393d14f303693b4bfb7fe388",
+              "size": 360960
+            }
+          },
+          "compatible_from": "1.0.0"
+        },
         {
           "version": "1.0.0",
           "released": "2026-11-28",
