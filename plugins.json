@@ -350,6 +350,49 @@
       ]
     },
     {
+      "id": "noise",
+      "name": "Noise",
+      "description": "Random grains of two colors, as a shape fill",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/noise",
+      "license": "MIT",
+      "kind": "library",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-28",
+          "abi": 3,
+          "generators": [
+            "Noise"
+          ],
+          "changes": "First release: fills a shape with noise of two colors",
+          "texts": {
+            "en-GB": {
+              "Random grains of two colors, as a shape fill": "Random grains of two colours, as a shape fill"
+            },
+            "fr-FR": {
+              "Noise": "Bruit",
+              "Random grains of two colors, as a shape fill": "Grains aléatoires de deux couleurs, pour remplir une forme"
+            }
+          },
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/noise-1.0.0/libnoise.so",
+              "sha256": "340af7c5df72e495a6306fd35a8788bdf17dba558c5fe2353ce8e45d7e791cb5",
+              "size": 597736
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/noise-1.0.0/noise.dll",
+              "sha256": "42aa7be46de87a7251bf845c7156f5b294f75da74fe9b553820e86ac32dd6ee2",
+              "size": 358912
+            }
+          },
+          "compatible_from": "1.0.0"
+        }
+      ]
+    },
+    {
       "id": "posterize",
       "name": "Posterize",
       "description": "Posterize effect and bands generator",
