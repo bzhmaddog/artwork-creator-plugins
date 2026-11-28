@@ -186,8 +186,40 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
-      "latest": "1.1.1",
+      "latest": "1.2.0",
       "versions": [
+        {
+          "version": "1.2.0",
+          "released": "2026-11-28",
+          "abi": 3,
+          "effects": [
+            "Halftone"
+          ],
+          "generators": [
+            "Dot grid"
+          ],
+          "changes": "In English (US and UK) and French",
+          "texts": {
+            "fr-FR": {
+              "Halftone": "Demi-teintes",
+              "Halftone dots effect and dot grid generator": "Effet de demi-teintes et générateur de grille de points",
+              "Dot grid": "Grille de points"
+            }
+          },
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.2.0/libhalftone.so",
+              "sha256": "d02853b5c6985ec6898b3806c40de8a83fdab5fb7357e8597056a5b536fc32e1",
+              "size": 627424
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.2.0/halftone.dll",
+              "sha256": "d9aa15a89fb4fc3db1f34a3c159164f2ceb2384538c5fb7feab38fd33a14981d",
+              "size": 390144
+            }
+          },
+          "compatible_from": "0.1.0"
+        },
         {
           "version": "1.1.1",
           "released": "2026-11-27",
