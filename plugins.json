@@ -3,6 +3,49 @@
   "name": "Artwork Creator official plugins",
   "plugins": [
     {
+      "id": "checkerboard",
+      "name": "Checkerboard",
+      "description": "Squares of two colors in turn, as a shape fill",
+      "author": "bzhmaddog",
+      "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/checkerboard",
+      "license": "MIT",
+      "kind": "library",
+      "latest": "1.0.0",
+      "versions": [
+        {
+          "version": "1.0.0",
+          "released": "2026-11-28",
+          "abi": 3,
+          "generators": [
+            "Checkerboard"
+          ],
+          "changes": "First release: fills a shape with a checkerboard of two colors",
+          "texts": {
+            "en-GB": {
+              "Squares of two colors in turn, as a shape fill": "Squares of two colours in turn, as a shape fill"
+            },
+            "fr-FR": {
+              "Checkerboard": "Damier",
+              "Squares of two colors in turn, as a shape fill": "Carrés de deux couleurs en alternance, pour remplir une forme"
+            }
+          },
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/checkerboard-1.0.0/libcheckerboard.so",
+              "sha256": "8541f5a470fd82d22d147ae9dc2058093f0cafdcc3b1f4bb16e3bbd13771d1fc",
+              "size": 601688
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/checkerboard-1.0.0/checkerboard.dll",
+              "sha256": "accfb33c7f54f03acf08eebd7f357ade62ad38204e9f336eb56862fed4b7352b",
+              "size": 356352
+            }
+          },
+          "compatible_from": "1.0.0"
+        }
+      ]
+    },
+    {
       "id": "clouds",
       "name": "Clouds",
       "description": "Soft cloudy patches mixing two colors, as a shape fill",
