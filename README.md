@@ -85,7 +85,8 @@ commit: look at the changes, `git add` them and commit again. `make pre-commit` 
 hooks on every file; `git commit --no-verify` skips them. Run `make hooks` again after
 moving the clone: the hook names the `.venv`'s Python by its path.
 
-**Setup**: with [rustup](https://rustup.rs) and Python 3.11+ installed, `make install` adds
+**Setup**: with [rustup](https://rustup.rs), Python 3.11+ and Node.js 18+ (for `npx jscpd` in
+`make duplication`) installed, `make install` adds
 everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
 components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
 a `.venv` with `requirements-dev.txt` and the Python plugins' dependencies (which make then

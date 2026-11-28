@@ -2,8 +2,9 @@
 # like the app's Makefile. The Release workflow (.github/workflows/release.yml) builds a plugin's
 # Linux file with make install-zig install-zigbuild and make linux-portable PACKAGE=<package>.
 #
-# Needs rustup (https://rustup.rs) and python3 (3.11+); make install adds the rest, except
-# MinGW for the Windows build, a system package (sudo apt install gcc-mingw-w64-x86-64).
+# Needs rustup (https://rustup.rs), python3 (3.11+) and Node.js 18+ (npx, for jscpd in make
+# duplication); make install adds the rest, except MinGW for the Windows build, a system
+# package (sudo apt install gcc-mingw-w64-x86-64).
 #
 # Common targets:
 #   make install      install the tools to build, test, lint and serve: the Rust targets and
@@ -29,6 +30,8 @@
 #                     SonarQube Cloud's gate (make coverage-new, on the reports alone)
 #   make lint         lint and type-check the Python code (ruff, ruff format --check, mypy;
 #                     requirements-dev.txt)
+#   make duplication  fail when more than 3 % of a plugin's code is copied within that
+#                     plugin (jscpd, one plugin at a time: plugins share code on purpose)
 #   make fmt          format the Rust and the Python code
 #   make lock         regenerate requirements-dev.txt (hash-locked) from requirements-dev.in
 #   make hooks        install the git hook of .pre-commit-config.yaml (pre-commit; again
@@ -74,7 +77,7 @@ PY_PLUGINS := $(filter-out $(PY_PLUGIN_TESTS),$(wildcard plugins/*/*.py))
 PY_TESTS   := tests/*.py $(PY_PLUGIN_TESTS)
 
 .PHONY: sdk-local sdk-github
-.PHONY: all install install-rust install-zig install-zigbuild install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint hooks pre-commit fmt clippy tag clean
+.PHONY: all install install-rust install-zig install-zigbuild install-python lock linux linux-portable windows dist serve check validate test test-rust test-python coverage coverage-python coverage-rust coverage-new lint duplication hooks pre-commit fmt clippy tag clean
 
 all: linux windows
 
@@ -146,7 +149,7 @@ SERVE_PORT    ?= 8765
 serve:
 	$(PYTHON) scripts/serve.py --port $(SERVE_PORT) $(foreach t,$(SERVE_TARGETS),--build $(t))
 
-check: validate lint test clippy
+check: validate lint duplication test clippy
 	$(CARGO) fmt --all --check
 
 # What CI checks besides the builds: the manifests, plugins.json and the Python scripts.
@@ -192,6 +195,19 @@ coverage-rust:
 MIN ?= 80
 coverage-new:
 	$(PYTHON) scripts/new_code_coverage.py --min $(MIN)
+
+# Copy-paste in a plugin's own code (not its tests), each plugin on its own: they stand
+# alone, so what they have in common is copied on purpose, and SonarQube Cloud leaves
+# plugins/ out of its duplication check (sonar.cpd.exclusions), which spans the whole
+# repository. The 3 % is SonarQube Cloud's gate on new code.
+JSCPD ?= npx --yes jscpd@5.4.3
+
+duplication:
+	@for d in plugins/*/; do \
+	  out="$$($(JSCPD) --format rust,python --min-tokens 50 --threshold 3 \
+	    --ignore '**/tests.rs,**/test_*.py' --reporters console "$$d" 2>&1)" \
+	    || { printf '%s\n' "$$out"; echo "duplication in $$d"; exit 1; }; \
+	done; echo "no duplication within a plugin"
 
 # Settings in ruff.toml and mypy.ini.
 lint:

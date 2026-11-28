@@ -39,5 +39,5 @@ docs/publishing.md describe everything in detail; the rules that matter most:
   `untranslated` test, `tests/test_plugins.py` for Python). Needs plugin SDK 0.6.0.
 - **U.S. English** in code, comments and docs, as in the app.
 
-Before finishing, run `make check` (validate, lint with ruff and mypy, tests, clippy,
-`cargo fmt --check`); `make fmt` formats Python and Rust.
+Before finishing, run `make check` (validate, lint with ruff and mypy, duplication within
+each plugin with jscpd, tests, clippy, `cargo fmt --check`); `make fmt` formats Python and Rust.
