@@ -434,6 +434,58 @@ class PluginEntryTest(RepoTestCase):
         self.assertEqual(v["compatible_from"], "0.4.0")
 
 
+def with_translations(arg, after=""):
+    """PY_SCRIPT with translations=arg passed to its Plugin(...), and after at its end."""
+    return PY_SCRIPT.replace("generators=[Noise()])", f"generators=[Noise()], translations={arg})") + after
+
+
+class TextsTest(RepoTestCase):
+    files: ClassVar = {"any": {"url": "u", "sha256": "0" * 64, "size": 1}}
+
+    def test_rust_catalogs_go_into_the_entry(self):
+        folder = self.add_rust()
+        fr = {"Rusty": "Rouillé", "The rusty plugin": "L'extension rouillée", "Blur": "Flou", "Grid": "Grille"}
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps(fr))
+        self.write("plugins/rusty/locales/en-US.json", json.dumps({k: k for k in fr}))
+        m = pi.load_plugin(folder)
+        self.assertEqual(pi.catalog_errors(folder, pi.code_translations(folder, m)), [])
+        v = pi.plugin_entry(folder, m, self.files, abi=3)["versions"][0]
+        # U.S. English, the same as the code's, is left out.
+        self.assertEqual(v["texts"], {"fr-FR": fr})
+        self.assertEqual(list(v)[-2:], ["texts", "files"])
+
+    def test_python_catalogs_are_read_without_running_the_script(self):
+        catalog = '{"fr-FR": {"Demo": "Démo", "Invert": ("Inv" "erser"), "Extra": "En plus"}}'
+        folder = self.add_python(script=with_translations("TRANSLATIONS", f"TRANSLATIONS = {catalog}\n"))
+        m = pi.load_plugin(folder)
+        catalogs = pi.code_translations(folder, m)
+        self.assertEqual(pi.index_texts(m, catalogs), {"fr-FR": {"Demo": "Démo", "Invert": "Inverser"}})
+        # Translations are optional: what fr-FR leaves out stays English.
+        self.assertEqual(pi.catalog_errors(folder, catalogs), [])
+        self.write("plugins/demo/demo.py", with_translations('{"fr": {"Noise": "Bruit"}}'))
+        self.assertEqual(pi.code_translations(folder, m), {"fr": {"Noise": "Bruit"}})
+
+    def test_none_and_unreadable(self):
+        folder = self.add_python()
+        m = pi.load_plugin(folder)
+        self.assertEqual(pi.code_translations(folder, m), {})
+        self.assertNotIn("texts", pi.plugin_entry(folder, m, self.files)["versions"][0])
+        self.write("plugins/demo/demo.py", with_translations("T"))
+        with self.assertRaisesRegex(pi.Error, "no T = "):
+            pi.code_translations(folder, m)
+        self.write("plugins/demo/demo.py", with_translations("load()"))
+        with self.assertRaisesRegex(pi.Error, "must be a literal dict"):
+            pi.code_translations(folder, m)
+        problems = pi.catalog_errors(folder, {"fr": {"Demo": 3}})
+        self.assertEqual(problems, ["demo: the fr catalog must map strings to strings"])
+
+    def test_index_texts_are_checked(self):
+        self.assertEqual(pi.texts_errors({"fr-FR": {"A": "B"}}), [])
+        bad = ["texts must map language codes to dicts of strings"]
+        self.assertEqual(pi.texts_errors({"fr-FR": {"A": 1}}), bad)
+        self.assertEqual(pi.texts_errors(["fr-FR"]), bad)
+
+
 class PrepareTest(RepoTestCase):
     def test_hashes_the_files_and_writes_notes(self):
         folder = self.add_python()
@@ -590,6 +642,16 @@ class ValidateTest(RepoTestCase):
         self.write_index(self.index)
         self.assertIn("ok: 2 plugins, 1 in the index", quiet(pi.cmd_validate, args()))
 
+    def test_texts_format(self):
+        self.index[0]["versions"][0]["texts"] = {"fr-FR": {"Invert": 2}}
+        self.assert_problem("texts must map language codes to dicts of strings")
+
+    def test_catalogs_may_leave_texts_out_but_must_be_strings(self):
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps({"Blur": "Flou"}))
+        self.assertEqual(self.problems(), [])
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps({"Blur": 1}))
+        self.assert_problem("rusty: the fr-FR catalog must map strings to strings")
+
     def test_dependencies_format(self):
         self.index[0]["versions"][0]["dependencies"] = "numpy"
         self.assert_problem("dependencies must be a list of requirement strings")
@@ -719,7 +781,7 @@ class CheckLockTest(RepoTestCase):
         self.assertEqual(pi.lock_errors(lock()), [], "no SDK at all")
 
     def test_local_sdk(self):
-        # As make sdk-local leaves it: a patched path package has no source.
+        # As a [patch] leaves it (an older make sdk-local): a patched path package has no source.
         problems = pi.lock_errors(lock(GIT_SDK, ""))
         self.assertEqual(len(problems), 1, problems)
         self.assertIn("artwork-plugin-sdk 0.5.0 is not from GitHub", problems[0])

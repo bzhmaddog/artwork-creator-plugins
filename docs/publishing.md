@@ -109,6 +109,31 @@ cargo-zigbuild. See the top of the `Makefile`.
    using them still runs on older apps, which show the parameters ungrouped; a Python
    one doesn't, as `group=` is new in the SDK the app provides.
 
+   Its texts are in U.S. English, in the code; other languages are optional. The app asks a
+   plugin for the texts of its language and shows those, the ones of the code where it has
+   none. To translate them, give catalogs mapping texts of the code (names, descriptions,
+   parameter labels, groups and choice labels; units are not translated) to a language's,
+   for `en-GB` and `fr-FR` (the app's other languages), complete or not:
+   - **Rust**: `plugins/<id>/locales/fr-FR.json` and the like, passed to
+     `export_plugin!(..., translations: [("fr-FR", include_str!("../locales/fr-FR.json")),
+     ...])`; a test that `artwork_plugin_sdk::untranslated(..)` of each is empty tells
+     what one lacks (see `plugins/noise/src/tests.rs`), for a plugin that wants them
+     complete.
+   - **Python**: a `TRANSLATIONS = {"fr-FR": {...}, ...}` dict passed to
+     `Plugin(..., translations=TRANSLATIONS)`; `plugin.untranslated("fr-FR")` tells what
+     one lacks. A literal dict, there or as `TRANSLATIONS` at the top of the script:
+     `make validate` reads it without running the script.
+
+   Each catalog also translates the manifest's `name` and `description` (step 3); with
+   the effects' and generators' names, a release copies these into its version's `texts`
+   in `plugins.json` (those that differ from the English ones), so that the app shows
+   them in its language in the plugin manager, and names a missing effect or generator in
+   it before the plugin is installed. A text a catalog leaves out shows in English.
+
+   Translations need plugin SDK 0.6.0: a Rust plugin built with it has ABI version 3,
+   which only apps from that SDK on load; a Python plugin needs `"sdk": ">=0.6.0"` and
+   the `app` that ships it.
+
 3. Add `plugins/<id>/plugin.json`. Copy one from another plugin of the same kind and
    change it:
 
@@ -223,12 +248,15 @@ the *Plugins* tab.
   up the next time the app reads the list, without restarting the server. A version bumped
   in a `Cargo.toml` is written into `Cargo.lock` on that fetch. A build error comes back as
   the error of the list, and in the server's output.
-- Only the working tree's version of each plugin is listed. The app offers an update only
-  to a higher version than the one installed, so bump the version to see a change as an
-  update, or remove the plugin and install it again.
-- The list is made from the manifests and builds only; the committed `plugins.json` isn't
-  read. So a version has a `compatible_from` only when its manifest gives one; nothing is
-  carried over from the previous version as a release would.
+- Each plugin lists the working tree's version, then the versions already released (from
+  this clone's `plugins.json`, downloaded from their GitHub Release), the same version
+  number left out. So an app the working tree's version doesn't work with (an older one,
+  say) is offered the latest released version that works, as from the published list.
+  The app offers an update only to a higher version than the one installed, so bump the
+  version to see a change as an update, or remove the plugin and install it again.
+- The working tree's version is made from its manifest and build; a version has a
+  `compatible_from` only when its manifest gives one, nothing is carried over from the
+  previous version as a release would.
 - A Rust plugin is built for Linux only by default (`SERVE_TARGETS`). For the app on
   Windows, reaching WSL's `localhost`, add the Windows build:
   `make serve SERVE_TARGETS="x86_64-unknown-linux-gnu x86_64-pc-windows-gnu"`. A file
@@ -306,12 +334,14 @@ make sdk-github    # back to the SDK from GitHub
 
 `make install` runs `make sdk-local` when it finds the app checkout there (and
 `make sdk-github` wasn't chosen since: it leaves an existing `.cargo/config.toml` alone).
-`make sdk-local` writes a `[patch]` in `.cargo/config.toml`, which git ignores, so it is
-for this clone only: the `Cargo.toml` files keep their git dependency (`make validate`
+`make sdk-local` writes a `paths` override in `.cargo/config.toml`, which git ignores, so
+it is for this clone only: the `Cargo.toml` files keep their git dependency (`make validate`
 refuses a `path` one, which CI couldn't build, as it checks out this repository alone).
-Every build, test and `make serve` then uses the local SDK. `Cargo.lock` names the local
-SDK meanwhile, so it shows as changed: leave it out of commits (the commit hook refuses
-it), or run `make sdk-github` first when it has a change of its own to commit.
+Every build, test and `make serve` then uses the local SDK, while `Cargo.lock` keeps the
+SDK from GitHub at the plugins' tags, as CI builds it: it can be committed as it is. The
+local SDK may have another version than the tag's, but no dependency the tag's SDK hasn't
+(Cargo refuses the override then). The commit hook still checks that the staged
+`Cargo.lock` takes the SDK from GitHub.
 
 Until the app releases the SDK, CI needs it from GitHub too: point the plugin at a pushed
 commit of the app, `rev = "<commit>"` in place of `tag`, and move it to the release

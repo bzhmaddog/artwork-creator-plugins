@@ -24,9 +24,27 @@ def stand_in_sdk():
         pass
 
     class Plugin:
-        def __init__(self, name, version, effects=(), generators=()):
+        def __init__(self, name, version, effects=(), generators=(), translations=None):
             self.name, self.version = name, version
             self.effects, self.generators = list(effects), list(generators)
+            self.translations = dict(translations or {})
+
+        def untranslated(self, language):
+            """The texts the catalog of `language` (its code, as given) lacks, as the SDK's."""
+            catalog = self.translations.get(language, {})
+            missing = []
+            for x in self.effects + self.generators:
+                texts = [x.name, getattr(x, "description", "")]
+                for p in x.params:
+                    texts += [p["label"], p.get("group")]
+                    if p["type"] == "choice":
+                        # The SDK's options, or the stand-in's (id, label) pairs.
+                        options = p.get("options") or [{"label": label} for _, label in p["args"][0]]
+                        texts += [o["label"] for o in options]
+                for text in texts:
+                    if text and not catalog.get(text) and text not in missing:
+                        missing.append(text)
+            return missing
 
     def param(kind):
         # The keys the app reads, as the SDK gives them; the other arguments as passed.

@@ -3,6 +3,27 @@
 
 use super::*;
 
+/// What a catalog of locales/ leaves untranslated.
+fn untranslated(catalog: &str) -> Vec<String> {
+    let contents = (
+        vec![Box::new(Halftone) as Box<dyn Effect>],
+        vec![Box::new(DotGrid) as Box<dyn Generator>],
+    );
+    artwork_plugin_sdk::untranslated(contents, catalog).unwrap()
+}
+
+#[test]
+fn every_text_is_in_both_englishes_and_french() {
+    for catalog in [
+        include_str!("../locales/en-US.json"),
+        include_str!("../locales/en-GB.json"),
+        include_str!("../locales/fr-FR.json"),
+    ] {
+        let missing = untranslated(catalog);
+        assert!(missing.is_empty(), "{missing:?}");
+    }
+}
+
 /// How much of a 64 x 64 mid-gray square the dots cover, out of 1, with these
 /// values.
 fn ink(json: &str) -> f32 {

@@ -1,6 +1,6 @@
 [package]
 name = "halftone"
-version = "1.1.1"
+version = "1.2.0"
 edition = "2024"
 description = "Example Artwork Creator plugin: a halftone effect"
 license = "MIT"
@@ -13,4 +13,4 @@ crate-type = ["cdylib"]
 # The plugin SDK at an app release tag: raise it on purpose, then
 # `cargo update -p artwork-plugin-sdk@<old version>`. To build against the local SDK,
 # make sdk-local.
-artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.19.0" }
+artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.21.0" }

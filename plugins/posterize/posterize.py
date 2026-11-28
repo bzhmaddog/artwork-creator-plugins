@@ -63,4 +63,53 @@ class Bands(Generator):
         image.pixels[:] = out
 
 
-plugin = Plugin("Posterize", "1.1.0", effects=[Posterize()], generators=[Bands()])
+# The texts of the code in each language of the app.
+TRANSLATIONS = {
+    "en-US": {
+        "Posterize effect and bands generator": "Posterize effect and bands generator",
+        "Posterize": "Posterize",
+        "Reduce each color channel to a few levels (Python example plugin)": (
+            "Reduce each color channel to a few levels (Python example plugin)"
+        ),
+        "Levels": "Levels",
+        "Bands": "Bands",
+        "Stripes of two colors (Python example plugin)": "Stripes of two colors (Python example plugin)",
+        "Band width": "Band width",
+        "Orientation": "Orientation",
+        "First color": "First color",
+        "Second color": "Second color",
+        "Colors": "Colors",
+    },
+    "en-GB": {
+        "Posterize effect and bands generator": "Posterize effect and bands generator",
+        "Posterize": "Posterize",
+        "Reduce each color channel to a few levels (Python example plugin)": (
+            "Reduce each colour channel to a few levels (Python example plugin)"
+        ),
+        "Levels": "Levels",
+        "Bands": "Bands",
+        "Stripes of two colors (Python example plugin)": "Stripes of two colours (Python example plugin)",
+        "Band width": "Band width",
+        "Orientation": "Orientation",
+        "First color": "First colour",
+        "Second color": "Second colour",
+        "Colors": "Colours",
+    },
+    "fr-FR": {
+        "Posterize effect and bands generator": "Effet de postérisation et générateur de bandes",
+        "Posterize": "Postériser",
+        "Reduce each color channel to a few levels (Python example plugin)": (
+            "Réduit chaque canal de couleur à quelques niveaux (extension d'exemple en Python)"
+        ),
+        "Levels": "Niveaux",
+        "Bands": "Bandes",
+        "Stripes of two colors (Python example plugin)": ("Rayures de deux couleurs (extension d'exemple en Python)"),
+        "Band width": "Largeur des bandes",
+        "Orientation": "Orientation",
+        "First color": "Première couleur",
+        "Second color": "Seconde couleur",
+        "Colors": "Couleurs",
+    },
+}
+
+plugin = Plugin("Posterize", "1.2.0", effects=[Posterize()], generators=[Bands()], translations=TRANSLATIONS)

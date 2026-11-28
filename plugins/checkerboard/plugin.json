@@ -1,0 +1,12 @@
+{
+  "id": "checkerboard",
+  "name": "Checkerboard",
+  "description": "Squares of two colors in turn, as a shape fill",
+  "author": "bzhmaddog",
+  "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/checkerboard",
+  "license": "MIT",
+  "kind": "library",
+  "generators": [
+    "Checkerboard"
+  ]
+}

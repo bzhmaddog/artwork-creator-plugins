@@ -1,0 +1,16 @@
+[package]
+name = "stripes"
+version = "1.0.0"
+edition = "2024"
+description = "Artwork Creator plugin: a stripes generator"
+license = "MIT"
+publish = false
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+# The plugin SDK at an app release tag: raise it on purpose, then
+# `cargo update -p artwork-plugin-sdk@<old version>`. To build against the local SDK,
+# make sdk-local.
+artwork-plugin-sdk = { git = "https://github.com/bzhmaddog/artwork-creator-app", tag = "v0.21.0" }

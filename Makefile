@@ -199,18 +199,20 @@ lint:
 	$(RUFF) format --check .
 	$(MYPY)
 
-# The plugin SDK of a local app checkout in place of the one from GitHub, through a [patch]
-# in .cargo/config.toml, which git ignores: the Cargo.toml files keep their git dependency
-# for CI. Cargo.lock then names the local SDK; the commit hook refuses it (check-lock).
+# The plugin SDK of a local app checkout in place of the one from GitHub, through a paths
+# override in .cargo/config.toml, which git ignores: the Cargo.toml files keep their git
+# dependency for CI, and unlike a [patch], it leaves Cargo.lock alone, so the lock keeps the
+# SDK from GitHub and can be committed. The local SDK may have another version than the
+# tag's, but not dependencies the tag's hasn't (Cargo then refuses the override).
+# Running cargo metadata also repairs a lock that an older make sdk-local (a [patch]) wrote.
 SDK_PATH ?= ../artwork-creator-app/plugin-sdk
-SDK_REPO := https://github.com/bzhmaddog/artwork-creator-app
 
 sdk-local:
 	@test -f $(SDK_PATH)/Cargo.toml || { echo "no plugin SDK in $(SDK_PATH): set SDK_PATH"; exit 1; }
 	@mkdir -p .cargo
-	@printf '# Written by make sdk-local, removed by make sdk-github.\n[patch."%s"]\n%s = { path = "%s" }\n' \
-	  '$(SDK_REPO)' artwork-plugin-sdk "$$(cd $(SDK_PATH) && pwd)" > .cargo/config.toml
-	$(CARGO) metadata --offline --format-version 1 > /dev/null
+	@printf '# Written by make sdk-local, removed by make sdk-github.\npaths = ["%s"]\n' \
+	  "$$(cd $(SDK_PATH) && pwd)" > .cargo/config.toml
+	$(CARGO) metadata --format-version 1 > /dev/null
 	@echo "Building against $$(cd $(SDK_PATH) && pwd); make sdk-github to go back."
 
 sdk-github:

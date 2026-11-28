@@ -1,0 +1,19 @@
+{
+  "Halftone": "Halftone",
+  "Redraw the image as a screen of dots sized by its darkness (example plugin)": "Redraw the image as a screen of dots sized by its darkness (example plugin)",
+  "Dot spacing": "Dot spacing",
+  "Dot size": "Dot size",
+  "Angle": "Angle",
+  "X offset": "X offset",
+  "Y offset": "Y offset",
+  "Dots": "Dots",
+  "One ink": "One ink",
+  "Image colors": "Image colours",
+  "Colors": "Colours",
+  "Ink": "Ink",
+  "Paper": "Paper",
+  "Dot grid": "Dot grid",
+  "Even dots on a square grid (example plugin)": "Even dots on a square grid (example plugin)",
+  "Spacing": "Spacing",
+  "Halftone dots effect and dot grid generator": "Halftone dots effect and dot grid generator"
+}
