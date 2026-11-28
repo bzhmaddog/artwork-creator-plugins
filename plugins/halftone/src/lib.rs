@@ -60,6 +60,11 @@ impl Effect for Halftone {
         "Redraw the image as a screen of dots sized by its darkness (example plugin)"
     }
 
+    // It redraws colors, not shapes: a shape's stroke and a text's outline stay out of it.
+    fn fill_only(&self) -> bool {
+        true
+    }
+
     fn params(&self) -> Vec<Param> {
         let mut params = vec![
             Param::float("size", "Dot spacing", 2.0, 100.0, 16.0)
