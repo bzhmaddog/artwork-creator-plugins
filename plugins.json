@@ -524,8 +524,38 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/swap-channels",
       "license": "MIT",
       "kind": "python",
-      "latest": "1.0.0",
+      "latest": "1.1.0",
       "versions": [
+        {
+          "version": "1.1.0",
+          "released": "2026-11-28",
+          "min_app": "0.21.0",
+          "engines": {
+            "app": ">=0.21.0",
+            "sdk": ">=0.6.0"
+          },
+          "compatible_from": "1.0.0",
+          "effects": [
+            "Swap channels"
+          ],
+          "changes": "In English (US and UK) and French",
+          "texts": {
+            "en-GB": {
+              "Swap two color channels of an image": "Swap two colour channels of an image"
+            },
+            "fr-FR": {
+              "Swap channels": "Échanger les canaux",
+              "Swap two color channels of an image": "Échange deux canaux de couleur d'une image"
+            }
+          },
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/swap-channels-1.1.0/swap_channels.py",
+              "sha256": "c94d233712d6f7104d9926a3bcce3e3e4ed39bd1963321974956757671840f99",
+              "size": 2353
+            }
+          }
+        },
         {
           "version": "1.0.0",
           "released": "2026-11-22",
