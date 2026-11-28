@@ -663,11 +663,35 @@ class ValidateTest(RepoTestCase):
         self.index[0]["versions"][0]["texts"] = {"fr-FR": {"Invert": 2}}
         self.assert_problem("texts must map language codes to dicts of strings")
 
+    def ship_french(self):
+        """The Rust plugin lists fr-FR in export_plugin!'s translations."""
+        listed = '    translations: [("fr-FR", include_str!("../locales/fr-FR.json"))],\n);'
+        self.write("plugins/rusty/src/lib.rs", RS_SOURCE.replace("\n);", "\n" + listed, 1))
+
     def test_catalogs_may_leave_texts_out_but_must_be_strings(self):
-        self.write("plugins/rusty/locales/fr-FR.json", json.dumps({"Blur": "Flou"}))
+        self.ship_french()
+        fr = {"Rusty": "Rouillé", "The rusty plugin": "L'extension rouillée"}
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps(fr))
         self.assertEqual(self.problems(), [])
-        self.write("plugins/rusty/locales/fr-FR.json", json.dumps({"Blur": 1}))
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps({**fr, "Blur": 1}))
         self.assert_problem("rusty: the fr-FR catalog must map strings to strings")
+
+    def test_catalog_without_the_manifest_s_name_or_description(self):
+        self.ship_french()
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps({"Rusty": "Rouillé", "Blur": "Flou"}))
+        self.assert_problem(
+            "rusty: the fr-FR catalog has no translation of the plugin's description 'The rusty plugin'"
+        )
+        self.write("plugins/demo/demo.py", with_translations('{"en-GB": {"The demo plugin": "The demo plugin"}}'))
+        self.assert_problem("demo: the en-GB catalog has no translation of the plugin's name 'Demo'")
+
+    def test_locales_the_binary_doesn_t_ship(self):
+        fr = {"Rusty": "Rouillé", "The rusty plugin": "L'extension rouillée"}
+        self.write("plugins/rusty/locales/fr-FR.json", json.dumps(fr))
+        self.assert_problem("rusty: locales/ has ['fr-FR'], export_plugin!'s translations list []")
+        self.ship_french()
+        self.write("plugins/rusty/locales/de-DE.json", json.dumps(fr))
+        self.assert_problem("rusty: locales/ has ['de-DE', 'fr-FR'], export_plugin!'s translations list ['fr-FR']")
 
     def test_dependencies_format(self):
         self.index[0]["versions"][0]["dependencies"] = "numpy"

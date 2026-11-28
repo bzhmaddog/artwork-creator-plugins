@@ -64,7 +64,8 @@ Checks the tag and works out what to build.
    (non-draft) release already exists for the tag. A draft left by a failed run is fine;
    `publish` replaces it.
 
-`make tag` runs the same `validate` and `resolve` locally before creating the tag.
+`make tag` (and `make release`, which then pushes the tag) runs the same `validate` and
+`resolve` locally before creating the tag.
 
 ### 2. build (Rust plugins only)
 

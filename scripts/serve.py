@@ -23,10 +23,16 @@ import subprocess
 import sys
 import threading
 
+from app_versions import app_versions, development
 from plugin_index import ROOT, Error, load_plugin, plugin_dirs, plugin_entry, sdk_abi
 
 # The page that lists the plugins (site/, published with plugins.json on GitHub Pages).
 SITE = "site"
+
+# The app checkout whose tags give the page's app versions (/apps.json), as the Pages
+# workflow publishes them from the app's repository, after its own files as they are, the
+# select's "Current" item.
+APP_CHECKOUT = ROOT.parent / "artwork-creator-app"
 
 # The official index, as the app reads it (OFFICIAL in the app).
 PUBLISHED_INDEX = "https://bzhmaddog.github.io/artwork-creator-plugins/plugins.json"
@@ -86,9 +92,10 @@ class LocalRepository:
         can't be read."""
         try:
             index = json.loads((ROOT / "plugins.json").read_text(encoding="utf-8"))
-        except (OSError, ValueError):
+            plugins = index["plugins"]
+            return {p["id"]: list(p.get("versions", [])) for p in plugins}
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
             return {}
-        return {p["id"]: p.get("versions", []) for p in index.get("plugins", [])}
 
     def index(self):
         with self.lock:
@@ -163,6 +170,14 @@ def make_server(host, port, build):
                 return self.send(200, body.encode(), "application/json")
             if path == "/sources.json":
                 body = json.dumps(INDEX_SOURCES, indent=2) + "\n"
+                return self.send(200, body.encode(), "application/json")
+            if path == "/apps.json" and (APP_CHECKOUT / ".git").exists():
+                try:
+                    apps = [development(APP_CHECKOUT), *app_versions(APP_CHECKOUT)]
+                    body = json.dumps({"apps": apps}, indent=2) + "\n"
+                except (OSError, ValueError, KeyError, subprocess.CalledProcessError) as e:
+                    print(f"error: {e}", file=sys.stderr)
+                    return self.send(500, f"{e}\n".encode(), "text/plain; charset=utf-8")
                 return self.send(200, body.encode(), "application/json")
             if path == "/repository/plugins.json":
                 on_disk = ROOT / "plugins.json"

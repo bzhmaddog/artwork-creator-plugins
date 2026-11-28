@@ -27,9 +27,12 @@ docs/publishing.md describe everything in detail; the rules that matter most:
 - **Python plugins**: dependencies in the script's own PEP 723 block; tests next to the
   script (`plugins/<id>/test_*.py`), every Python plugin must have some. The tests in
   `tests/` use only the standard library.
-- **Releasing**: bump the version, commit, push, then `make tag PLUGIN=<id> MSG="..."` (it
-  runs `make validate` first, as the Release workflow does before building) and
-  push the tag (ask before pushing). The workflow opens an "Index <id>-<version>" PR.
+- **Releasing**: bump the version, commit, push, then `make release PLUGIN=<id> MSG="..."`
+  (`make tag`, which runs `make validate` first as the Release workflow does before
+  building, then the tag's push; ask before running it). One tag per push: GitHub starts
+  no workflow for a push of more than three. The workflow opens an "Index <id>-<version>" PR.
+- **The plugin page's app versions** (`apps.json`) come from the app's release tags: the
+  Pages workflow makes them daily with `scripts/app_versions.py`; nothing to add by hand.
 - **Trying before a release**: `make serve`, then add
   `http://127.0.0.1:8765/plugins.json` in the app's plugin manager.
 - **Translations**: every official plugin gives all its texts in `en-US`, `en-GB` and

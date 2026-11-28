@@ -174,6 +174,34 @@ class ServerTest(ServeTestCase):
         self.assertEqual([s["id"] for s in sources], ["local", "file", "published"])
         self.assertEqual(sources[2]["url"], serve.PUBLISHED_INDEX)
 
+    def test_app_versions(self):
+        dev = {"label": "Current", "version": "0.22.0", "sdk": "0.7.0", "abi": [1, 3]}
+        apps = [{"version": "0.21.0", "sdk": "0.6.0", "abi": [1, 3]}]
+        with mock.patch.object(serve, "APP_CHECKOUT", self.root / "app"):
+            self.assertEqual(self.get("/apps.json")[0], 404)
+            (self.root / "app" / ".git").mkdir(parents=True)
+            with (
+                mock.patch.object(serve, "app_versions", return_value=apps),
+                mock.patch.object(serve, "development", return_value=dev),
+            ):
+                status, headers, body = self.get("/apps.json")
+            self.assertEqual(
+                (status, headers["Content-Type"], json.loads(body)), (200, "application/json", {"apps": [dev, *apps]})
+            )
+            with mock.patch.object(serve, "development", side_effect=ValueError("ABI_VERSION not found")):
+                status, _, body = self.get("/apps.json")
+            self.assertEqual((status, body), (500, b"ABI_VERSION not found\n"))
+
+    def test_malformed_index_is_unreadable(self):
+        for index in (
+            "[1]",
+            '{"plugins": [{"name": "no id"}]}',
+            '{"plugins": 3}',
+            '{"plugins": [{"id": "x", "versions": 3}]}',
+        ):
+            (self.root / "plugins.json").write_text(index)
+            self.assertEqual(serve.LocalRepository.released(), {}, index)
+
     def test_repository_index(self):
         (self.root / "plugins.json").unlink(missing_ok=True)
         self.assertEqual(self.get("/repository/plugins.json")[0], 404)

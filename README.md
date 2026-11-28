@@ -32,9 +32,12 @@ Bump the plugin's version (`Cargo.toml` or `plugin.json`), commit and push, then
 push the tag:
 
 ```sh
-make tag PLUGIN=halftone MSG="Line screen added"
-git push origin halftone-0.2.0
+make release PLUGIN=halftone MSG="Line screen added"
 ```
+
+`make release` is `make tag` (checks, then the tag `halftone-0.2.0`) followed by
+`git push origin halftone-0.2.0`; run those two yourself to look at the tag before it goes
+up. Push tags one at a time, or three at most: GitHub starts no workflow for a push of more.
 
 The **Release plugin** workflow builds the files, publishes them on the GitHub Release for
 that tag, checks their hashes, and opens an "Index <tag>" pull request that adds the new
@@ -92,15 +95,8 @@ commit: look at the changes, `git add` them and commit again. `make pre-commit` 
 hooks on every file; `git commit --no-verify` skips them. Run `make hooks` again after
 moving the clone: the hook names the `.venv`'s Python by its path.
 
-**Setup**: with [rustup](https://rustup.rs), Python 3.11+ and Node.js 18+ (for `npx jscpd` in
-`make duplication`) installed, `make install` adds
-everything else to build, test, lint and serve: the Rust targets (Linux, Windows) and
-components (rustfmt, clippy, llvm-tools), cargo-zigbuild and cargo-llvm-cov, zig in `.tools/`,
-a `.venv` with `requirements-dev.txt` and the Python plugins' dependencies (which make then
-uses), jscpd (fetched into npx's cache), and the git hooks. With the app checked out next to this repository
-(`../artwork-creator-app`), it also makes the Rust plugins build against that app's plugin SDK
-instead of the one from GitHub, for this clone only (`make sdk-local`, see
-[Working with an SDK that isn't released yet](docs/publishing.md#working-with-an-sdk-that-isnt-released-yet)).
+**Setup**: install what [Prerequisites](docs/publishing.md#prerequisites) lists (rustup,
+Python 3.11+, Node.js 18+, MinGW), then run `make install` for everything else.
 `requirements-dev.txt` is generated and hash-locked: edit the tool versions in
 `requirements-dev.in`, then run `make lock` to regenerate it. Running it
 again only updates what's missing. The one thing it doesn't install is MinGW, the linker of
@@ -109,10 +105,5 @@ says so when it's missing).
 
 ### Repository settings
 
-- *Settings > General > Releases*: turn on **release immutability**, so a published
-  release, its files and its tag can't be changed or moved.
-- *Settings > Actions > General > Workflow permissions*: **Read and write permissions**,
-  and **Allow GitHub Actions to create and approve pull requests**: the workflow pushes its
-  `index/<tag>` branch and opens the pull request with `GITHUB_TOKEN`. It never pushes
-  to `main`, which can stay protected.
-- *Settings > Pages*: **Source** set to **GitHub Actions**, for the Pages workflow.
+The GitHub settings that publishing needs, once: see
+[Prerequisites > To publish](docs/publishing.md#to-publish).

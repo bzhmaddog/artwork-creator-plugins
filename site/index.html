@@ -20,11 +20,15 @@
       integrity="sha384-QWTKZyjpPEjISv5WaRU9OFeRpok6YctnYmDr5pNlyT2bRjXh0JMhjY6hW+ALEwIH" crossorigin="anonymous">
 <script src="index.js" defer></script>
 <style>
-  .version + .version { border-top: 1px solid var(--bs-border-color); }
-  .previous > summary { cursor: pointer; }
-  .provides { max-width: 640px; }
-  .provides td:first-child { width: 55%; }
-  .previous[open] > summary { margin-bottom: .25rem; }
+  .container { max-width: 900px; }
+  /* A line between versions shown: one hidden by the filter doesn't count. */
+  .version:not(.d-none) ~ .version:not(.d-none) { border-top: 1px solid var(--bs-border-color); }
+  .other > summary { cursor: pointer; }
+  /* The columns as wide as their text, the last, empty one taking the rest. */
+  .provides th:not(:last-child), .provides td:not(:last-child) { width: 1%; white-space: nowrap; padding-right: 2rem; }
+  .other[open] > summary { margin-bottom: .25rem; }
+  .version { border-left: 3px solid transparent; padding-left: .5rem; }
+  .version.incompatible { border-left-color: var(--bs-danger); background: var(--bs-danger-bg-subtle); }
 </style>
 </head>
 <body>
@@ -37,6 +41,11 @@
     <input id="filter" type="search" class="form-control" style="max-width: 360px"
            placeholder="Filter by name, description, effect…" aria-label="Filter plugins">
     <select id="source" class="form-select w-auto" aria-label="Index to list" hidden></select>
+    <select id="app" class="form-select w-auto" aria-label="App version, whose incompatible plugin versions are marked" hidden></select>
+    <div class="form-check mb-0" hidden>
+      <input id="only-compatible" class="form-check-input" type="checkbox" autocomplete="off">
+      <label class="form-check-label" for="only-compatible">Show only compatible plugins</label>
+    </div>
     <span id="count" class="text-body-secondary small"></span>
   </div>
   <div id="status" class="text-body-secondary py-5">Loading plugins.json…</div>

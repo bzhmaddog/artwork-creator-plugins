@@ -279,6 +279,30 @@ def catalog_errors(folder, catalogs):
     ]
 
 
+def manifest_text_errors(folder, m, catalogs):
+    """Where a catalog has no translation of the manifest's name or description: the index
+    would keep the English one for that language."""
+    return [
+        f"{folder.name}: the {language} catalog has no translation of the plugin's {what} {m[what]!r}"
+        for language, catalog in sorted(catalogs.items())
+        if isinstance(catalog, dict)
+        for what in ("name", "description")
+        if m[what] not in catalog
+    ]
+
+
+def shipped_locales_errors(folder):
+    """Where a Rust plugin's locales/*.json and the languages export_plugin!'s translations
+    list differ: only those listed are in the binary, but the index takes every file."""
+    files = sorted(p.stem for p in (folder / "locales").glob("*.json"))
+    src = "\n".join(p.read_text(encoding="utf-8") for p in sorted((folder / "src").rglob("*.rs")))
+    export = RS_EXPORT_RE.search(src)
+    listed = sorted(re.findall(r'\(\s*"([^"\\]+)"\s*,\s*include_str!', export["body"])) if export else []
+    if files == listed:
+        return []
+    return [f"{folder.name}: locales/ has {files}, export_plugin!'s translations list {listed}"]
+
+
 def texts_errors(texts):
     """Problems with a version's texts in the index."""
     if not isinstance(texts, dict) or not all(
@@ -733,7 +757,11 @@ def cmd_validate(args):
                         f"{folder.name}: plugin.json {k} {sorted(declared)} don't match the code's {sorted(actual)}"
                     )
             errors += identity_errors(folder, m, code_identity(folder, m))
-            errors += catalog_errors(folder, code_translations(folder, m))
+            catalogs = code_translations(folder, m)
+            errors += catalog_errors(folder, catalogs)
+            errors += manifest_text_errors(folder, m, catalogs)
+            if m["kind"] == "library":
+                errors += shipped_locales_errors(folder)
         except (Error, OSError, ValueError, KeyError) as e:
             errors.append(str(e))
     for folder in PLUGINS.iterdir():
