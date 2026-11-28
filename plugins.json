@@ -53,8 +53,41 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/film-grain",
       "license": "MIT",
       "kind": "python",
-      "latest": "1.0.1",
+      "latest": "1.1.0",
       "versions": [
+        {
+          "version": "1.1.0",
+          "released": "2026-11-28",
+          "min_app": "0.21.0",
+          "engines": {
+            "app": ">=0.21.0",
+            "sdk": ">=0.6.0"
+          },
+          "compatible_from": "1.0.0",
+          "effects": [
+            "Film grain"
+          ],
+          "changes": "In English (US and UK) and French",
+          "dependencies": [
+            "numpy>=1.26"
+          ],
+          "texts": {
+            "en-GB": {
+              "Film grain effect: random noise, monochrome or color": "Film grain effect: random noise, monochrome or colour"
+            },
+            "fr-FR": {
+              "Film grain": "Grain argentique",
+              "Film grain effect: random noise, monochrome or color": "Effet de grain argentique : bruit aléatoire, monochrome ou en couleur"
+            }
+          },
+          "files": {
+            "any": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/film-grain-1.1.0/film_grain.py",
+              "sha256": "db76ad98432b5a88f01f7ca898566700a3e78db117662d08aea647206d20a657",
+              "size": 4025
+            }
+          }
+        },
         {
           "version": "1.0.1",
           "released": "2026-11-24",
