@@ -12,24 +12,33 @@ dependencies = [
 ]
 
 [[package]]
+name = "artwork-plugin-sdk"
+version = "0.7.0"
+source = "git+https://github.com/bzhmaddog/artwork-creator-app?tag=v0.22.0#18075e25c2a62d49ffef1089e681a487b916950c"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "checkerboard"
 version = "1.1.0"
 dependencies = [
- "artwork-plugin-sdk",
+ "artwork-plugin-sdk 0.6.0",
 ]
 
 [[package]]
 name = "clouds"
 version = "1.0.0"
 dependencies = [
- "artwork-plugin-sdk",
+ "artwork-plugin-sdk 0.6.0",
 ]
 
 [[package]]
 name = "halftone"
 version = "1.4.0"
 dependencies = [
- "artwork-plugin-sdk",
+ "artwork-plugin-sdk 0.7.0",
 ]
 
 [[package]]
@@ -48,7 +57,7 @@ checksum = "cf8baf1c55e62ffcace7a9f06f4bd9cd3f0c4beb022d3b367256b91b87513d98"
 name = "noise"
 version = "1.0.0"
 dependencies = [
- "artwork-plugin-sdk",
+ "artwork-plugin-sdk 0.6.0",
 ]
 
 [[package]]
@@ -116,7 +125,7 @@ dependencies = [
 name = "stripes"
 version = "1.1.0"
 dependencies = [
- "artwork-plugin-sdk",
+ "artwork-plugin-sdk 0.6.0",
 ]
 
 [[package]]
