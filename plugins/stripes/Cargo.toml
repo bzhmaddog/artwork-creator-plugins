@@ -1,6 +1,6 @@
 [package]
 name = "stripes"
-version = "1.0.0"
+version = "1.1.0"
 edition = "2024"
 description = "Artwork Creator plugin: a stripes generator"
 license = "MIT"

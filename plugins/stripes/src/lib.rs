@@ -49,7 +49,12 @@ impl Generator for Stripes {
     fn params(&self) -> Vec<Param> {
         let mut params = vec![mm("size", "Width", 0.2, 200.0, 5.0)];
         params.extend(colors(BLACK, WHITE));
-        params.push(angle());
+        params.extend([
+            angle(),
+            Param::float("offset", "Offset", -100.0, 100.0, 0.0)
+                .unit(" %")
+                .decimals(0),
+        ]);
         params
     }
 
@@ -57,9 +62,12 @@ impl Generator for Stripes {
         let size = v.f32("size").max(1e-3);
         let (a, b, deg) = (v.color("color1"), v.color("color2"), v.f32("angle"));
         let px = 1.0 / (px_per_mm * size);
+        // Moved across the bands by a share of the band width; none (0) in a project
+        // saved before there was the offset.
+        let offset = (v.f32("offset") / 100.0).clamp(-1.0, 1.0);
         fill(img, px_per_mm, |x, y| {
             let (_, w) = turned(x, y, deg);
-            mix(a, b, 0.5 + 0.5 * square_wave(w / size, px))
+            mix(a, b, 0.5 + 0.5 * square_wave(w / size - offset, px))
         });
         Ok(())
     }

@@ -1,13 +1,10 @@
 """Example Artwork Creator plugin in Python: a posterize effect, reducing each color
-channel to a few levels, and a bands generator filling a shape with stripes of two
-colors at any angle. Plain Python, no package needed.
+channel to a few levels. Plain Python, no package needed.
 
 `make plugins` copies it into plugins/. See "Plugins" in README.md.
 """
 
-import math
-
-from artwork_plugin_sdk import Effect, Generator, Plugin, color, color_param, float_param, int_param
+from artwork_plugin_sdk import Effect, Plugin, int_param
 
 
 class Posterize(Effect):
@@ -25,91 +22,32 @@ class Posterize(Effect):
         image.pixels[3::4] = alpha
 
 
-class Bands(Generator):
-    id = "pyexample.bands"
-    name = "Bands"
-    description = "Stripes of two colors (Python example plugin)"
-    params = [
-        float_param("width", "Band width", 0.5, 100, 5, unit=" mm"),
-        # An angle gets a dial: counterclockwise, 0 for horizontal bands.
-        float_param("angle", "Orientation", -180, 180, 0, unit="°", decimals=0, role="angle"),
-        color_param("first", "First color", "#1d3557ff", group="Colors"),
-        color_param("second", "Second color", "#f1faeeff", group="Colors"),
-    ]
-
-    def generate(self, image, values, px_per_mm):
-        band = max(values["width"] * px_per_mm, 1)
-        turn = math.radians(values["angle"])
-        # Across the bands, in band widths: at pixel x of a row, start + x * step (y is
-        # down, so the bands turn counterclockwise on the page).
-        step = math.sin(turn) / band
-        colors = [bytes(color(values[k])) for k in ("first", "second")]
-        out = bytearray()
-        for y in range(image.height):
-            start = (0.5 * math.sin(turn) + (y + 0.5) * math.cos(turn)) / band
-            # A row is drawn as runs of one band each, not pixel by pixel.
-            x = 0
-            while x < image.width:
-                k = math.floor(start + x * step)
-                if step > 0:
-                    end = math.ceil((k + 1 - start) / step)
-                elif step < 0:
-                    end = math.floor((k - start) / step) + 1
-                else:
-                    end = image.width
-                end = min(image.width, max(end, x + 1))
-                out += colors[k % 2] * (end - x)
-                x = end
-        image.pixels[:] = out
-
-
 # The texts of the code in each language of the app.
 TRANSLATIONS = {
     "en-US": {
-        "Posterize effect and bands generator": "Posterize effect and bands generator",
+        "Reduce each color channel to a few levels": "Reduce each color channel to a few levels",
         "Posterize": "Posterize",
         "Reduce each color channel to a few levels (Python example plugin)": (
             "Reduce each color channel to a few levels (Python example plugin)"
         ),
         "Levels": "Levels",
-        "Bands": "Bands",
-        "Stripes of two colors (Python example plugin)": "Stripes of two colors (Python example plugin)",
-        "Band width": "Band width",
-        "Orientation": "Orientation",
-        "First color": "First color",
-        "Second color": "Second color",
-        "Colors": "Colors",
     },
     "en-GB": {
-        "Posterize effect and bands generator": "Posterize effect and bands generator",
+        "Reduce each color channel to a few levels": "Reduce each colour channel to a few levels",
         "Posterize": "Posterize",
         "Reduce each color channel to a few levels (Python example plugin)": (
             "Reduce each colour channel to a few levels (Python example plugin)"
         ),
         "Levels": "Levels",
-        "Bands": "Bands",
-        "Stripes of two colors (Python example plugin)": "Stripes of two colours (Python example plugin)",
-        "Band width": "Band width",
-        "Orientation": "Orientation",
-        "First color": "First colour",
-        "Second color": "Second colour",
-        "Colors": "Colours",
     },
     "fr-FR": {
-        "Posterize effect and bands generator": "Effet de postérisation et générateur de bandes",
+        "Reduce each color channel to a few levels": "Réduit chaque canal de couleur à quelques niveaux",
         "Posterize": "Postériser",
         "Reduce each color channel to a few levels (Python example plugin)": (
             "Réduit chaque canal de couleur à quelques niveaux (extension d'exemple en Python)"
         ),
         "Levels": "Niveaux",
-        "Bands": "Bandes",
-        "Stripes of two colors (Python example plugin)": ("Rayures de deux couleurs (extension d'exemple en Python)"),
-        "Band width": "Largeur des bandes",
-        "Orientation": "Orientation",
-        "First color": "Première couleur",
-        "Second color": "Seconde couleur",
-        "Colors": "Couleurs",
     },
 }
 
-plugin = Plugin("Posterize", "1.2.0", effects=[Posterize()], generators=[Bands()], translations=TRANSLATIONS)
+plugin = Plugin("Posterize", "2.0.0", effects=[Posterize()], translations=TRANSLATIONS)
