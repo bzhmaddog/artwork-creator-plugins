@@ -186,8 +186,40 @@
       "homepage": "https://github.com/bzhmaddog/artwork-creator-plugins/tree/main/plugins/halftone",
       "license": "MIT",
       "kind": "library",
-      "latest": "1.2.0",
+      "latest": "1.3.0",
       "versions": [
+        {
+          "version": "1.3.0",
+          "released": "2026-11-28",
+          "abi": 3,
+          "effects": [
+            "Halftone"
+          ],
+          "generators": [
+            "Dot grid"
+          ],
+          "changes": "New Between the dots choice: Paper (as before) or Nothing, which leaves the image showing between the dots. Better default dot spacing (16 px) and dot size (85 %).",
+          "texts": {
+            "fr-FR": {
+              "Halftone": "Demi-teintes",
+              "Halftone dots effect and dot grid generator": "Effet de demi-teintes et générateur de grille de points",
+              "Dot grid": "Grille de points"
+            }
+          },
+          "files": {
+            "linux-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.3.0/libhalftone.so",
+              "sha256": "5212b75e506c9daa56df13c4fc60dcc0d692ede736234dc1b31712874b11fcb4",
+              "size": 628272
+            },
+            "windows-x86_64": {
+              "url": "https://github.com/bzhmaddog/artwork-creator-plugins/releases/download/halftone-1.3.0/halftone.dll",
+              "sha256": "130100d17f3f2a6c5071baf3d9f96abaf54c9693a891cf64d5201ef9c817c407",
+              "size": 391168
+            }
+          },
+          "compatible_from": "0.1.0"
+        },
         {
           "version": "1.2.0",
           "released": "2026-11-28",
